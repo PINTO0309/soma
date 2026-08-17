@@ -6,6 +6,26 @@ A person is not "one box": it is an **anatomical token** — body box, body part
 
 Every mechanism present here is exercised by the shipped presets, and the replay outputs are **bit-identical** to the research repo's benchmark cells (verified over all 33 [CrowdTrack](https://github.com/loseevaya/CrowdTrack) sequences x 3 presets).
 
+## Why SOMA?
+
+The obvious alternative is the classic recipe — ByteTrack-style association on a YOLOX-X detector, plus BoostTrack++ — which looks overwhelmingly strong on the MOT17/MOT20 leaderboards. The research repo behind SOMA measured what those numbers are actually made of, ingredient by ingredient, and found that much of the margin is benchmark artifact, not deployment quality:
+
+- **Train leakage** — the published `bytetrack_x_mot17` detector is trained on the *full* MOT17 train set, so any MOT17-train-derived evaluation partly re-detects its own training data (MOTA ~88-90).
+- **Detector-benchmark co-adaptation** — that YOLOX-X is trained on a dataset recipe assembled *for this benchmark family*, and it regresses MOT's **amodal full-body boxes**: a person standing behind an occluder still gets a box stretched over their invisible legs. That convention serves exactly one consumer — MOT-style association — and is the wrong primitive for every other use of a person detector: crop such a box and a ReID embedder, pose estimator or privacy mask mostly sees the occluder; gate a region-entry counter with it and people walk through walls. A generic visible-extent detector is systematically IoU-penalized by MOT GT for refusing to hallucinate — a penalty that says nothing about real-world quality. SOMA keeps the detector generic and reusable beyond tracking (visible-extent boxes + parts) and synthesizes the amodal box *inside the tracker* instead.
+- **The literature is detector-bound** — for well over five years the tracking-by-detection line of papers has presupposed the output of a specialized detection model (benchmark-adapted, amodal, high-resolution), so a "better tracker" result holds only inside that detector's output distribution. The association step moves single HOTA points while the detector choice moves tens — the research repo measured +14 HOTA / +19 MOTA on MOT20 from swapping the detector alone under the *same* SOMA-R tracker. To first order, tracker rankings are detector rankings.
+- **Tuning and post-processing** — official thresholds were tuned on the very sequences being scored (official repos even carry per-sequence overrides), and published numbers include offline interpolation — unusable in a live system.
+- **The compute budget is off-screen** — most published configurations assume high-resolution inputs (well above 720p; ByteTrack's official test size is 1440x800), where detector inference — not the tracker's few milliseconds of association — is nearly the entire end-to-end cost. A ranking bought at that input size says nothing about what holds up on a real deployment budget.
+- **The metric barely sees the hardest failure** — losing a person for *seconds* and re-acquiring them with the same id is the failure that hurts in production, yet MOT17 val contains exactly **7** ground-truth occlusion episodes in the 4-6 s range.
+
+SOMA is the counter-design, built for the question those leaderboards don't answer — *what tracks well behind a generic detector in a live system?*
+
+1. **Structure over scale.** A multi-task wholebody detector that was never trained on MOT data already emits rich per-person structure in one whole-frame pass; SOMA turns it into an anatomical token and fuses many weak, cheap identity channels instead of relying on one strong, expensive one.
+2. **Online only, end to end.** No offline interpolation ever, no per-sequence tuning, TensorRT throughout — every number in the table below is producible by the live pipeline.
+3. **Low resolution by design.** SOMA assumes VGA-class inputs and below — the shipped presets run the detector at 640x640 stretch even on 720p footage — so the dominant cost term stays small enough for real-time edge deployment, and the detection-recall hit is taken openly instead of being hidden behind a high-resolution detector pass.
+4. **Score what hurts in production.** The primary KPI is long-gap same-id recovery (`same-id ~1s/~3s/~5s`) plus the coverage-fair switch rate `sw/TP` — hence the [CrowdTrack](https://github.com/loseevaya/CrowdTrack) benchmark, whose ~5s occlusion-episode pool is ~19x MOT17's.
+
+Two honest caveats carry over from the research repo: SOMA's edge is *co-designed with the anatomical detector* — on body-only detections its extra channels have nothing to read and the ID lead disappears; and the classic trackers are not dismissed — the BoostTrack++ ingredients that survived ablation (always-on appearance, Mahalanobis channel, KF-posterior output) are transplanted into SOMA, while the ones that failed are documented as rejected, with numbers.
+
 ## Benchmark
 
 [CrowdTrack](https://github.com/loseevaya/CrowdTrack) train (33 static-CCTV sequences, 25 fps, 720p) — the long-gap recovery battleground: its ~5s occlusion-episode pool is ~19x MOT17's. Rendered by `soma-eval table` (protocol details inside `results/eval_table.json`):
@@ -43,7 +63,7 @@ uv sync # pinned deps (numpy/opencv/ort-gpu/scipy)
 # data/CrowdTrack : the benchmark split (MOT layout)
 ```
 
-ReID preprocessing is RGB `(x/255 - 0.5) / 0.5`; both embedders run TensorRT fp16 with `batch_max=1` (one static engine shape — validated config). The detector runs TensorRT fp16 (first run per shape builds the engine; use `--backend cuda` to skip TensorRT entirely).
+Both SOMA-R ReID embedders (PersonViT / OSNet-AIN) are distributed in [PINTO_model_zoo 502_PersonViT](https://github.com/PINTO0309/PINTO_model_zoo/tree/main/502_PersonViT). ReID preprocessing is RGB `(x/255 - 0.5) / 0.5`; both embedders run TensorRT fp16 with `batch_max=1` (one static engine shape — validated config). The detector runs TensorRT fp16 (first run per shape builds the engine; use `--backend cuda` to skip TensorRT entirely).
 
 ## Reproduce
 
