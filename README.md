@@ -12,7 +12,7 @@ Every mechanism present here is exercised by the shipped presets, and the replay
 
 ### 640x640 stretch — detector: wb28 — ReID: PersonViT ViT-S/16 aug v3 (raw)
 
-| tracker | HOTA | DetA | AssA | MOTA | IDF1 | IDSW | sw/TP | same-id ~1s | ~3s | ~5s |
+| tracker | HOTA | DetA | AssA | MOTA | IDF1 | IDSW | sw/TP | ~1s | ~3s | ~5s |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | SOMA | 29.2% | 28.5% | 30.2% | 31.1% | 31.2% | 7,964 | 3.32% | 8% | 0% | 0% |
 | **SOMA-R** | **37.4%** | 30.6% | **46.1%** | **33.7%** | **45.2%** | 4,376 | 1.65% | **34%** | **30%** | **44%** |
@@ -22,7 +22,7 @@ Every mechanism present here is exercised by the shipped presets, and the replay
 
 ### 640x640 stretch — detector: wb28 — ReID: OSNet-AIN aug v3 (whitened)
 
-| tracker | HOTA | DetA | AssA | MOTA | IDF1 | IDSW | sw/TP | same-id ~1s | ~3s | ~5s |
+| tracker | HOTA | DetA | AssA | MOTA | IDF1 | IDSW | sw/TP | ~1s | ~3s | ~5s |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | SOMA | 29.2% | 28.5% | 30.2% | 31.1% | 31.2% | 7,964 | 3.32% | 8% | 0% | 0% |
 | **SOMA-R** | **36.7%** | 30.6% | **44.4%** | **33.5%** | **44.0%** | 4,938 | 1.87% | **32%** | **26%** | **32%** |
