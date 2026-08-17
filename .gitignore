@@ -3,7 +3,10 @@ __pycache__/
 .venv/
 uv.lock
 # large artifacts — models are copied in from the research repo (see README)
-models/*.onnx
-models/TensorrtExecutionProvider_*
-data/
+*.onnx
+*.engine
+*.profile
+*.mp4
+data/cache
+data/CrowdTrack-MOT-720p
 results/videos/
