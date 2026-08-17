@@ -359,6 +359,21 @@ soma/
   }
   ```
 
+## Citation
+
+If you find SOMA useful in your research or products, please cite:
+
+```bibtex
+@software{hyodo2026soma,
+  title     = {SOMA: Structured Output Matching \& Association},
+  author    = {Hyodo, Katsuya},
+  year      = {2026},
+  publisher = {Zenodo},
+  doi       = {10.5281/zenodo.21986816},
+  url       = {https://github.com/PINTO0309/soma}
+}
+```
+
 ## License
 
 [MIT License](./LICENSE)
