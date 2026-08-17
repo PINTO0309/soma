@@ -13,7 +13,7 @@ SOMA's center of gravity is **recovery from long occlusion loss**: when a person
 The obvious alternative is the classic recipe — ByteTrack-style association on a YOLOX-X detector, plus BoostTrack++ — which looks overwhelmingly strong on the MOT17/MOT20 leaderboards. The research repo behind SOMA measured what those numbers are actually made of, ingredient by ingredient, and found that much of the margin is benchmark artifact, not deployment quality:
 
 - **Train leakage** — the published `bytetrack_x_mot17` detector is trained on the *full* MOT17 train set, so any MOT17-train-derived evaluation partly re-detects its own training data (MOTA ~88-90).
-- **Detector-benchmark co-adaptation** — that YOLOX-X is trained on a dataset recipe assembled *for this benchmark family*, and it regresses MOT's **amodal full-body boxes**: a person standing behind an occluder still gets a box stretched over their invisible legs. That convention serves exactly one consumer — MOT-style association — and is the wrong primitive for every other use of a person detector: crop such a box and a ReID embedder, pose estimator or privacy mask mostly sees the occluder; gate a region-entry counter with it and people walk through walls. A generic visible-extent detector is systematically IoU-penalized by MOT GT for refusing to hallucinate — a penalty that says nothing about real-world quality. SOMA keeps the detector generic and reusable beyond tracking (visible-extent boxes + parts) and synthesizes the amodal box *inside the tracker* instead.
+- **Detector-benchmark co-adaptation** — that ByteTrack YOLOX-X is trained on a dataset recipe assembled *for this benchmark family*, and it regresses MOT's **amodal full-body boxes**: a person standing behind an occluder still gets a box stretched over their invisible legs. That convention serves exactly one consumer — MOT-style association — and is the wrong primitive for every other use of a person detector: crop such a box and a ReID embedder, pose estimator or privacy mask mostly sees the occluder; gate a region-entry counter with it and people walk through walls. A generic visible-extent detector is systematically IoU-penalized by MOT GT for refusing to hallucinate — a penalty that says nothing about real-world quality. SOMA keeps the detector generic and reusable beyond tracking (visible-extent boxes + parts) and synthesizes the amodal box *inside the tracker* instead.
 
   <img width="500" alt="amodal_bbox" src="https://github.com/user-attachments/assets/bef1de7e-3c12-43be-9531-7bf04c538431" />
 
@@ -82,6 +82,13 @@ uv sync # pinned deps (numpy/opencv/ort-gpu/scipy)
 ```
 
 Both SOMA-R ReID embedders (PersonViT / OSNet-AIN) are distributed in [PINTO_model_zoo 502_PersonViT](https://github.com/PINTO0309/PINTO_model_zoo/tree/main/502_PersonViT). ReID preprocessing is RGB `(x/255 - 0.5) / 0.5`; both embedders run TensorRT fp16 with `batch_max=1` (one static engine shape — validated config). The detector runs TensorRT fp16 (first run per shape builds the engine; use `--backend cuda` to skip TensorRT entirely).
+
+Standalone ReID accuracy of the two fine-tuned embedders, from the [PersonViT](https://github.com/PINTO0309/PersonViT/tree/uv) repo (identity-disjoint unified test split spanning five public ReID benchmarks):
+
+| embedder (`--variant`) | fine-tune | backbone | params | GFLOPs<br>@256x128 | emb | mAP | Rank-1 | Rank-5 | Rank-10 |
+|---|---|---|---:|---:|---:|---:|---:|---:|---:|
+| `personvit_vits16_ain_unified_aug_n.onnx` (`pv`) | [S-ain-aug](https://github.com/PINTO0309/PersonViT/tree/uv#s-ain-aug----vit-s16--token-in---220m) | ViT-S/16 + token-IN | 22.0M | 2.94 | 384 | 93.1 | 97.2 | 98.2 | 98.4 |
+| `osnet_ain_x1_0_p_unified_aug_n.onnx` (`os`) | [P-ain-aug](https://github.com/PINTO0309/PersonViT/tree/uv#p-ain-aug---osnet-ain-x10---22m) | OSNet-AIN x1.0 | 2.2M | 0.98 | 512 | 89.1 | 95.4 | 97.7 | 98.1 |
 
 ## Reproduce
 
