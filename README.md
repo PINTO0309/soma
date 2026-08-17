@@ -324,6 +324,17 @@ soma/
   }
   ```
 
+- Bin Hu, Xinggang Wang, Wenyu Liu. *PersonViT: Large-scale Self-supervised Vision Transformer for Person Re-Identification.* arXiv:2408.05398, 2024. [[paper](https://arxiv.org/abs/2408.05398)] [[code](https://github.com/hustvl/PersonViT)]
+
+  ```bibtex
+  @article{hu2024personvit,
+    title   = {PersonViT: Large-scale Self-supervised Vision Transformer for Person Re-Identification},
+    author  = {Hu, Bin and Wang, Xinggang and Liu, Wenyu},
+    journal = {arXiv preprint arXiv:2408.05398},
+    year    = {2024}
+  }
+  ```
+
 ## License
 
 [MIT License](./LICENSE)
