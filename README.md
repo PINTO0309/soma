@@ -4,7 +4,9 @@
 
 A person is not "one box": it is an **anatomical token** — body box, body parts (head/shoulders/elbows/hands/knees/feet), head-orientation ring and person attributes — assembled from one [YOLOv9-E Wholebody28-Refine](https://github.com/PINTO0309/PINTO_model_zoo/tree/main/468_YOLOv9-Wholebody28-Refine) forward pass. Association fuses cheap identity channels (box IoU, part OKS, orientation continuity, attribute vetoes) with anatomical amodal box synthesis and an online scene-geometry size prior. **SOMA-R** adds an external ReID embedding as the dominant stage-1 channel plus a post-death identity memory, an embedding-only revival stage, appearance-locked track extension and short KF ghost coasting — the long-gap same-id recovery stack.
 
-Every mechanism present here is exercised by the shipped presets, and the replay outputs are **bit-identical** to the research repo's benchmark cells (verified over all 33 [CrowdTrack](https://github.com/loseevaya/CrowdTrack) sequences x 3 presets).
+The detector slot is deliberately interchangeable, not wedded to that one checkpoint: the research lineage walked DEIMv2-Wholebody49 → Wholebody34 → wb28-Refine, and any wholebody detector that emits the same anatomical output family can take its place — [DEIM-Wholebody28](https://github.com/PINTO0309/PINTO_model_zoo/tree/main/465_DEIM-Wholebody28), [YOLO-Wholebody34](https://github.com/PINTO0309/PINTO_model_zoo/tree/main/471_YOLO-Wholebody34), [DEIMv2-Wholebody34](https://github.com/PINTO0309/PINTO_model_zoo/tree/main/472_DEIMv2-Wholebody34), [DEIMv2-Wholebody40](https://github.com/PINTO0309/PINTO_model_zoo/tree/main/485_DEIMv2-Wholebody40) and [DEIMv2-Wholebody49](https://github.com/PINTO0309/PINTO_model_zoo/tree/main/488_DEIMv2-Wholebody49) are all drop-in candidates.
+
+SOMA's center of gravity is **recovery from long occlusion loss**: when a person disappears behind an occluder for seconds and re-emerges, they should come back under the *same id*. Frame-to-frame matching is a largely solved problem that every modern tracker handles well; surviving a multi-second gap is not — and it is exactly what the SOMA-R stack above (identity memory, embedding-only revival, appearance-locked extension, ghost coasting) is built for, and what the primary KPI below (`same-id ~1s/~3s/~5s`) scores directly.
 
 ## Why SOMA?
 
@@ -33,6 +35,19 @@ Two honest caveats carry over from the research repo: SOMA's edge is *co-designe
 
 [CrowdTrack](https://github.com/loseevaya/CrowdTrack) train (33 static-CCTV sequences, 25 fps, 720p) — the long-gap recovery battleground: its ~5s occlusion-episode pool is ~19x MOT17's. Rendered by `soma-eval table` (protocol details inside `results/eval_table.json`):
 
+| column | better | meaning |
+|---|:---:|---|
+| HOTA | ↑ | Higher-Order Tracking Accuracy — geometric mean of detection and association quality; the standard single-number ranking metric |
+| DetA | ↑ | Detection Accuracy — how much of the ground truth is covered by correctly localized boxes |
+| AssA | ↑ | Association Accuracy — how consistently detections are linked into the correct identity over time |
+| MOTA | ↑ | Multi-Object Tracking Accuracy — 1 − (FN + FP + IDSW) / GT; dominated by detection errors |
+| IDF1 | ↑ | Identity F1 — rewards keeping each person under one id across their whole trajectory |
+| IDSW | ↓ | Identity switches — absolute count of id changes on continuing tracks |
+| sw/TP | ↓ | Coverage-fair switch rate — IDSW per tracked box (TP = GT − FN); comparable across trackers with different recall, unlike absolute IDSW |
+| ~1s / ~3s / ~5s | ↑ | **Long-gap same-id recovery — the primary KPI.** Fraction of occlusion episodes (a tracked person fully hidden for ~N seconds — ~25 / ~75 / ~125 frames at 25 fps — then re-emerging; counted only if tracked in the second before the gap) re-attached under the **same id** after re-emergence |
+
+Concretely: SOMA-R's **44%** in the ~5s bin below means 44% of the people who vanished for ~5 seconds came back with their identity intact — every other tracker scores **0%** there; each of those people was reborn as a "new" person. Frame-to-frame metrics barely register these events; these columns are what SOMA is designed to win.
+
 ### 640x640 stretch — detector: wb28 — ReID: PersonViT ViT-S/16 aug v3 (raw)
 
 | tracker | HOTA | DetA | AssA | MOTA | IDF1 | IDSW | sw/TP | ~1s | ~3s | ~5s |
@@ -53,7 +68,7 @@ Two honest caveats carry over from the research repo: SOMA's edge is *co-designe
 | BoostTrack++ | 28.9% | 26.1% | 32.2% | 28.9% | 30.4% | 4,500 | 2.08% | 5% | 0% | 0% |
 | BoostTrack++-R | 30.7% | 26.2% | 35.8% | 29.1% | 32.8% | 3,638 | 1.68% | 6% | 0% | 0% |
 
-All rows share the same low-floor (0.10) wb28 detections; within a section every ReID row is fed the SAME features (fairness pairing). External baselines run official code (computed in the research repo via its shims). `same-id ~Ns` = fraction of ~N-second occlusion episodes re-attached under the SAME identity — the primary KPI.
+All rows share the same low-floor (0.10) wb28 detections; within a section every ReID row is fed the SAME features (fairness pairing). External baselines run official code (computed in the research repo via its shims).
 
 ## Setup
 
