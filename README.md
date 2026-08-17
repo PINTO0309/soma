@@ -335,6 +335,28 @@ soma/
   }
   ```
 
+- Kaiyang Zhou, Yongxin Yang, Andrea Cavallaro, Tao Xiang. *Omni-Scale Feature Learning for Person Re-Identification.* ICCV 2019. [[paper](https://arxiv.org/abs/1905.00953)] [[code](https://github.com/KaiyangZhou/deep-person-reid)]
+
+  ```bibtex
+  @inproceedings{zhou2019osnet,
+    title     = {Omni-Scale Feature Learning for Person Re-Identification},
+    author    = {Zhou, Kaiyang and Yang, Yongxin and Cavallaro, Andrea and Xiang, Tao},
+    booktitle = {ICCV},
+    year      = {2019}
+  }
+  ```
+
+- Kaiyang Zhou, Yongxin Yang, Andrea Cavallaro, Tao Xiang. *Learning Generalisable Omni-Scale Representations for Person Re-Identification.* TPAMI 2021. [[paper](https://arxiv.org/abs/1910.06827)] [[code](https://github.com/KaiyangZhou/deep-person-reid)]
+
+  ```bibtex
+  @article{zhou2021osnet,
+    title   = {Learning Generalisable Omni-Scale Representations for Person Re-Identification},
+    author  = {Zhou, Kaiyang and Yang, Yongxin and Cavallaro, Andrea and Xiang, Tao},
+    journal = {TPAMI},
+    year    = {2021}
+  }
+  ```
+
 ## License
 
 [MIT License](./LICENSE)
