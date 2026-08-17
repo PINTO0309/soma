@@ -37,14 +37,14 @@ Two honest caveats carry over from the research repo: SOMA's edge is *co-designe
 
 | column | better | meaning |
 |---|:---:|---|
-| HOTA | ↑ | Higher-Order Tracking Accuracy — geometric mean of detection and association quality; the standard single-number ranking metric |
-| DetA | ↑ | Detection Accuracy — how much of the ground truth is covered by correctly localized boxes |
-| AssA | ↑ | Association Accuracy — how consistently detections are linked into the correct identity over time |
-| MOTA | ↑ | Multi-Object Tracking Accuracy — 1 − (FN + FP + IDSW) / GT; dominated by detection errors |
-| IDF1 | ↑ | Identity F1 — rewards keeping each person under one id across their whole trajectory |
-| IDSW | ↓ | Identity switches — absolute count of id changes on continuing tracks |
-| sw/TP | ↓ | Coverage-fair switch rate — IDSW per tracked box (TP = GT − FN); comparable across trackers with different recall, unlike absolute IDSW |
-| ~1s / ~3s / ~5s | ↑ | **Long-gap same-id recovery — the primary KPI.** Fraction of occlusion episodes (a tracked person fully hidden for ~N seconds — ~25 / ~75 / ~125 frames at 25 fps — then re-emerging; counted only if tracked in the second before the gap) re-attached under the **same id** after re-emergence |
+| HOTA | ⏫ | Higher-Order Tracking Accuracy — geometric mean of detection and association quality; the standard single-number ranking metric |
+| DetA | ⏫ | Detection Accuracy — how much of the ground truth is covered by correctly localized boxes |
+| AssA | ⏫ | Association Accuracy — how consistently detections are linked into the correct identity over time |
+| MOTA | ⏫ | Multi-Object Tracking Accuracy — 1 − (FN + FP + IDSW) / GT; dominated by detection errors |
+| IDF1 | ⏫ | Identity F1 — rewards keeping each person under one id across their whole trajectory |
+| IDSW | ⬇️ | Identity switches — absolute count of id changes on continuing tracks |
+| sw/TP | ⬇️ | Coverage-fair switch rate — IDSW per tracked box (TP = GT − FN); comparable across trackers with different recall, unlike absolute IDSW |
+| ~1s / ~3s / ~5s | ⏫ | **Long-gap same-id recovery — the primary KPI.** Fraction of occlusion episodes (a tracked person fully hidden for ~N seconds — ~25 / ~75 / ~125 frames at 25 fps — then re-emerging; counted only if tracked in the second before the gap) re-attached under the **same id** after re-emergence |
 
 Concretely: SOMA-R's **44%** in the ~5s bin below means 44% of the people who vanished for ~5 seconds came back with their identity intact — every other tracker scores **0%** there; each of those people was reborn as a "new" person. Frame-to-frame metrics barely register these events; these columns are what SOMA is designed to win.
 
