@@ -8,5 +8,5 @@ uv.lock
 *.profile
 *.mp4
 data/cache
-data/CrowdTrack-MOT-720p
+data/CrowdTrack
 results/videos/

@@ -1,7 +1,7 @@
 """soma-eval: cache tokens, replay/evaluate, render the benchmark table,
 and run live tracking on arbitrary videos.
 
-  soma-eval cache data/CrowdTrack-MOT-720p/train --variant pv \\
+  soma-eval cache data/CrowdTrack/train --variant pv \\
       --out data/cache/pv_crowdtrack_train
   soma-eval bench                     # recompute SOMA rows -> results/eval_table.json
   soma-eval table                     # render the standing comparison table
@@ -24,7 +24,7 @@ from .tracker import SomaTracker, TrackerConfig
 
 W28 = "models/yolov9_e_wholebody28_refine_Nx3HxW.onnx"
 TABLE_JSON = "results/eval_table.json"
-CROWDTRACK = "data/CrowdTrack-MOT-720p/train"
+CROWDTRACK = "data/CrowdTrack/train"
 
 # ReID variants of the wb28x640 CrowdTrack benchmark. PersonViT v3 runs RAW
 # (its raw cosine geometry is already spread — internal domain

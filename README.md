@@ -8,7 +8,7 @@ Every mechanism present here is exercised by the shipped presets, and the replay
 
 ## Benchmark
 
-[CrowdTrack](https://github.com/loseevaya/CrowdTrack)-MOT-720p train (33 static-CCTV sequences, 25 fps, 720p) — the long-gap recovery battleground: its ~5s occlusion-episode pool is ~19x MOT17's. Rendered by `soma-eval table` (protocol details inside `results/eval_table.json`):
+[CrowdTrack](https://github.com/loseevaya/CrowdTrack) train (33 static-CCTV sequences, 25 fps, 720p) — the long-gap recovery battleground: its ~5s occlusion-episode pool is ~19x MOT17's. Rendered by `soma-eval table` (protocol details inside `results/eval_table.json`):
 
 ### 640x640 stretch — detector: wb28 — ReID: PersonViT ViT-S/16 aug v3 (raw)
 
@@ -35,12 +35,12 @@ All rows share the same low-floor (0.10) wb28 detections; within a section every
 ## Setup
 
 ```bash
-uv sync                                  # pinned deps (numpy/opencv/ort-gpu/scipy)
+uv sync # pinned deps (numpy/opencv/ort-gpu/scipy)
 # models/ : copy the three ONNX files (gitignored) —
 #   yolov9_e_wholebody28_refine_Nx3HxW.onnx   (detector, dynamic res)
 #   personvit_vits16_ain_unified_aug_n.onnx   (SOMA-R ReID, 384-d, raw)
 #   osnet_ain_x1_0_p_unified_aug_n.onnx       (SOMA-R ReID, 512-d, whitened)
-# data/CrowdTrack-MOT-720p : the benchmark split (MOT layout)
+# data/CrowdTrack : the benchmark split (MOT layout)
 ```
 
 ReID preprocessing is RGB `(x/255 - 0.5) / 0.5`; both embedders run TensorRT fp16 with `batch_max=1` (one static engine shape — validated config). The detector runs TensorRT fp16 (first run per shape builds the engine; use `--backend cuda` to skip TensorRT entirely).
@@ -49,15 +49,15 @@ ReID preprocessing is RGB `(x/255 - 0.5) / 0.5`; both embedders run TensorRT fp1
 
 ```bash
 # token caches (one per variant; ~15-20 min each on an RTX 3070)
-soma-eval cache data/CrowdTrack-MOT-720p/train \
+soma-eval cache data/CrowdTrack/train \
 --variant det \
 --out data/cache/l028b_crowdtrack_train
 
-soma-eval cache data/CrowdTrack-MOT-720p/train \
+soma-eval cache data/CrowdTrack/train \
 --variant pv  \
 --out data/cache/l028pv3rb_crowdtrack_train
 
-soma-eval cache data/CrowdTrack-MOT-720p/train \
+soma-eval cache data/CrowdTrack/train \
 --variant os  \
 --out data/cache/l028oaug3Wrb_crowdtrack_train
 

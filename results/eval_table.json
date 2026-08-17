@@ -429,7 +429,7 @@
   }
  },
  "gt_total": 701838,
- "protocol": "wb28 (YOLOv9-E Wholebody28-Refine) 640x640 stretch detections, shared low floor 0.10, no offline post-processing, house CLEAR/ID + HOTA + gap-recovery evaluator, CrowdTrack-MOT-720p train (33 CCTV seqs). SOMA rows are reproducible here (soma-eval cache/bench). External baselines (ByteTrack, BoostTrack++[-R]) are official-code results computed in the ptrack research repo (exp023 shims, same detections; BoostTrack++-R is fed the SAME ReID features as SOMA-R in each section). sw/TP = IDSW per tracked box (TP = GT - FN).",
+ "protocol": "wb28 (YOLOv9-E Wholebody28-Refine) 640x640 stretch detections, shared low floor 0.10, no offline post-processing, house CLEAR/ID + HOTA + gap-recovery evaluator, CrowdTrack train (33 CCTV seqs). SOMA rows are reproducible here (soma-eval cache/bench). External baselines (ByteTrack, BoostTrack++[-R]) are official-code results computed in the ptrack research repo (exp023 shims, same detections; BoostTrack++-R is fed the SAME ReID features as SOMA-R in each section). sw/TP = IDSW per tracked box (TP = GT - FN).",
  "sections": [
   [
    "640x640 stretch \u2014 detector: wb28 \u2014 CrowdTrack train \u2014 ReID: PersonViT ViT-S/16 aug v3 (raw)",
