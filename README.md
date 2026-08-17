@@ -274,6 +274,9 @@ soma/
 
 ## Models
 
+- ONNX
+- LiteRT (TFLite)
+
 https://github.com/PINTO0309/soma/releases/tag/models
 
 ## Cited
