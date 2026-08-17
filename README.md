@@ -33,7 +33,7 @@ Two honest caveats carry over from the research repo: SOMA's edge is *co-designe
 
 ## Benchmark
 
-[CrowdTrack](https://github.com/loseevaya/CrowdTrack) train (33 static-CCTV sequences, 25 fps, 720p) — the long-gap recovery battleground: its ~5s occlusion-episode pool is ~19x MOT17's. Rendered by `soma-eval table` (protocol details inside `results/eval_table.json`):
+[CrowdTrack](https://github.com/loseevaya/CrowdTrack) train — the long-gap recovery battleground: its ~5s occlusion-episode pool is ~19x MOT17's. Rendered by `soma-eval table` (protocol details inside `results/eval_table.json`):
 
 | column | better | meaning |
 |---|:---:|---|
