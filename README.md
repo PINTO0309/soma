@@ -34,7 +34,7 @@ SOMA is the counter-design, built for the question those leaderboards don't answ
 3. **Low resolution by design.** SOMA assumes VGA-class inputs and below — the shipped presets run the detector at 640x640 stretch even on 720p footage — so the dominant cost term stays small enough for real-time edge deployment, and the detection-recall hit is taken openly instead of being hidden behind a high-resolution detector pass.
 4. **Score what hurts in production.** The primary KPI is long-gap same-id recovery (`same-id ~1s/~3s/~5s`) plus the coverage-fair switch rate `sw/TP` — hence the [CrowdTrack](https://github.com/loseevaya/CrowdTrack) benchmark, whose ~5s occlusion-episode pool is ~19x MOT17's.
 
-Two honest caveats carry over from the research repo: SOMA's edge is *co-designed with the anatomical detector* — on body-only detections its extra channels have nothing to read and the ID lead disappears; and the classic trackers are not dismissed — the BoostTrack++ ingredients that survived ablation (always-on appearance, Mahalanobis channel, KF-posterior output) are transplanted into SOMA, while the ones that failed are documented as rejected, with numbers.
+**However, since object detection models, ReID models, and tracking algorithms each have distinct strengths and weaknesses depending on the situation, we make no exaggerated claims regarding the accuracy of the SOMA tracker. The sole focus of the discussion is whether or not practical use cases exist.**
 
 ## Benchmark
 
