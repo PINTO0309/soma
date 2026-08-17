@@ -224,7 +224,7 @@ The geometry is recorded in `state/cameras.jsonl`, in the generation　prompts, 
 - Full generation proceeds only after a 96-image quality pilot and a 96-image body-rotation pilot pass automatic and manual QA
 - Per-camera JPEG quality varies (e.g. 80/82/86) to mimic real-world compression diversity
 
-<img width="680" height="574" alt="image" src="https://github.com/user-attachments/assets/2f86f3b0-37e6-4232-b2d9-a2aa557a397d" />
+  <img width="680" height="574" alt="image" src="https://github.com/user-attachments/assets/2f86f3b0-37e6-4232-b2d9-a2aa557a397d" />
 
 ## Reproduce
 
