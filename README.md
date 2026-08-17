@@ -272,6 +272,10 @@ soma/
   cli.py          soma-eval: cache / run / bench / table / video
 ```
 
+## Models
+
+https://github.com/PINTO0309/soma/releases/tag/models
+
 ## Cited
 
 - Teng Fu, Yuwen Chen, Zhuofan Chen, Mengyang Zhao, Bin Li, Xiangyang Xue. *CrowdTrack: A Benchmark for Difficult Multiple Pedestrian Tracking in Real Scenarios.* arXiv:2507.02479, 2025. [[paper](https://arxiv.org/abs/2507.02479)] [[dataset](https://github.com/loseevaya/CrowdTrack)]

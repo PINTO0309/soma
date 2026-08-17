@@ -4,6 +4,7 @@ __pycache__/
 uv.lock
 # large artifacts — models are copied in from the research repo (see README)
 *.onnx
+*.tflite
 *.engine
 *.profile
 *.mp4
