@@ -18,6 +18,7 @@ The obvious alternative is the classic recipe — ByteTrack-style association on
   <img width="500" alt="amodal_bbox" src="https://github.com/user-attachments/assets/bef1de7e-3c12-43be-9531-7bf04c538431" />
 
 - **The literature is detector-bound** — for well over five years the tracking-by-detection line of papers has presupposed the output of a specialized detection model (benchmark-adapted, amodal, high-resolution), so a "better tracker" result holds only inside that detector's output distribution. The association step moves single HOTA points while the detector choice moves tens — the research repo measured +14 HOTA / +19 MOTA on MOT20 from swapping the detector alone under the *same* SOMA-R tracker. To first order, tracker rankings are detector rankings.
+- **The assumed ReID is weak** — when those papers do attach an appearance model, it is an off-the-shelf ReID checkpoint of very modest accuracy: the untuned official multi-source OSNet-AIN quoted in Setup below scores mAP ~0.46-0.74 on the official ReID splits, and that class of embedder is what the literature's lukewarm "ReID adds little" verdicts are built on. That verdict describes the embedder, not appearance itself: swap in a properly fine-tuned embedder (mAP 0.87-0.99 under the same protocol) and the embedding carries SOMA-R's entire long-gap recovery story — the difference between 0% and 44% in the ~5s bin.
 - **Tuning and post-processing** — official thresholds were tuned on the very sequences being scored (official repos even carry per-sequence overrides), and published numbers include offline interpolation — unusable in a live system.
 - **The compute budget is off-screen** — most published configurations assume high-resolution inputs (well above 720p; ByteTrack's official test size is 1440x800), where detector inference — not the tracker's few milliseconds of association — is nearly the entire end-to-end cost. A ranking bought at that input size says nothing about what holds up on a real deployment budget.
 - **The metric barely sees the hardest failure** — losing a person for *seconds* and re-acquiring them with the same id is the failure that hurts in production, yet MOT17 val contains exactly **7** ground-truth occlusion episodes in the 4-6 s range.
@@ -83,12 +84,98 @@ uv sync # pinned deps (numpy/opencv/ort-gpu/scipy)
 
 Both SOMA-R ReID embedders (PersonViT / OSNet-AIN) are distributed in [PINTO_model_zoo 502_PersonViT](https://github.com/PINTO0309/PINTO_model_zoo/tree/main/502_PersonViT). ReID preprocessing is RGB `(x/255 - 0.5) / 0.5`; both embedders run TensorRT fp16 with `batch_max=1` (one static engine shape — validated config). The detector runs TensorRT fp16 (first run per shape builds the engine; use `--backend cuda` to skip TensorRT entirely).
 
-Standalone ReID accuracy of the two fine-tuned embedders, from the [PersonViT](https://github.com/PINTO0309/PersonViT/tree/uv) repo (identity-disjoint unified test split spanning five public ReID benchmarks):
+| embedder (`--variant`) | fine-tune | backbone | params | GFLOPs<br>@256x128 | emb |
+|---|---|---|---:|---:|---:|
+| `personvit_vits16_ain_unified_aug_n.onnx` (`pv`) | [S-ain-aug](https://github.com/PINTO0309/PersonViT/tree/uv#s-ain-aug----vit-s16--token-in---220m) | ViT-S/16 + token-IN | 22.0M | 2.94 | 384 |
+| `osnet_ain_x1_0_p_unified_aug_n.onnx` (`os`) | [P-ain-aug](https://github.com/PINTO0309/PersonViT/tree/uv#p-ain-aug---osnet-ain-x10---22m) | OSNet-AIN x1.0 | 2.2M | 0.98 | 512 |
 
-| embedder (`--variant`) | fine-tune | backbone | params | GFLOPs<br>@256x128 | emb | mAP | Rank-1 | Rank-5 | Rank-10 |
-|---|---|---|---:|---:|---:|---:|---:|---:|---:|
-| `personvit_vits16_ain_unified_aug_n.onnx` (`pv`) | [S-ain-aug](https://github.com/PINTO0309/PersonViT/tree/uv#s-ain-aug----vit-s16--token-in---220m) | ViT-S/16 + token-IN | 22.0M | 2.94 | 384 | 93.1 | 97.2 | 98.2 | 98.4 |
-| `osnet_ain_x1_0_p_unified_aug_n.onnx` (`os`) | [P-ain-aug](https://github.com/PINTO0309/PersonViT/tree/uv#p-ain-aug---osnet-ain-x10---22m) | OSNet-AIN x1.0 | 2.2M | 0.98 | 512 | 89.1 | 95.4 | 97.7 | 98.1 |
+Standalone ReID accuracy of the two fine-tuned embedders, quoted from the [PersonViT](https://github.com/PINTO0309/PersonViT/tree/uv) repo:
+
+**[S-ain-aug](https://github.com/PINTO0309/PersonViT/tree/uv#s-ain-aug----vit-s16--token-in---220m) — ViT-S/16 + token-IN, 384-d — `personvit_vits16_ain_unified_aug_n.onnx` (`--variant pv`)**
+
+- official dataset eval
+
+  | dataset | queries | gallery | mAP | R1 | R5 | R10 |
+  | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+  | market | 3,368 | 15,913 | 0.9872 | 0.9911 | 0.9976 | 0.9991 |
+  | msmt17 | 11,659 | 82,161 | 0.9397 | 0.9697 | 0.9860 | 0.9882 |
+  | duke_occ | 2,210 | 17,661 | 0.9527 | 0.9674 | 0.9819 | 0.9855 |
+  | cuhk03np | 1,400 | 5,332 | 0.9875 | 0.9900 | 0.9950 | 0.9986 |
+  | occ_reid | 1,000 | 1,000 | 0.9955 | 0.9960 | 0.9980 | 0.9990 |
+
+- official dataset style-shift eval - query only shifted
+
+  | condition | mAP | R1 | dmAP | dR1 |
+  | --- | ---: | ---: | ---: | ---: |
+  | clean | 0.9555 | 0.9759 | — | — |
+  | bright+30% | 0.9547 | 0.9753 | -0.0008 | -0.0006 |
+  | dark-30% | 0.9555 | 0.9760 | +0.0000 | +0.0001 |
+  | contrast-40% | 0.9555 | 0.9760 | +0.0000 | +0.0001 |
+  | contrast+40% | 0.9090 | 0.9400 | -0.0465 | -0.0360 |
+  | warm | 0.9192 | 0.9477 | -0.0363 | -0.0282 |
+  | cool | 0.9411 | 0.9664 | -0.0145 | -0.0095 |
+  | gamma0.6 | 0.9481 | 0.9717 | -0.0074 | -0.0042 |
+  | gamma1.6 | 0.9448 | 0.9705 | -0.0107 | -0.0054 |
+  | jpeg-q40 | 0.9523 | 0.9748 | -0.0032 | -0.0011 |
+  | jpeg-q20 | 0.9430 | 0.9693 | -0.0125 | -0.0066 |
+
+**[P-ain-aug](https://github.com/PINTO0309/PersonViT/tree/uv#p-ain-aug---osnet-ain-x10---22m) — OSNet-AIN x1.0, 512-d — `osnet_ain_x1_0_p_unified_aug_n.onnx` (`--variant os`)**
+
+- official dataset eval
+
+  | dataset | queries | gallery | mAP | R1 | R5 | R10 |
+  | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+  | market | 3,368 | 15,913 | 0.9711 | 0.9857 | 0.9964 | 0.9976 |
+  | msmt17 | 11,659 | 82,161 | 0.8711 | 0.9472 | 0.9780 | 0.9828 |
+  | duke_occ | 2,210 | 17,661 | 0.8995 | 0.9362 | 0.9733 | 0.9801 |
+  | cuhk03np | 1,400 | 5,332 | 0.9800 | 0.9857 | 0.9936 | 0.9979 |
+  | occ_reid | 1,000 | 1,000 | 0.9878 | 0.9900 | 0.9940 | 0.9980 |
+
+- official dataset style-shift eval - query only shifted
+
+  | condition | mAP | R1 | dmAP | dR1 |
+  | --- | ---: | ---: | ---: | ---: |
+  | clean | 0.9051 | 0.9575 | — | — |
+  | bright+30% | 0.9014 | 0.9547 | -0.0037 | -0.0027 |
+  | dark-30% | 0.9042 | 0.9566 | -0.0009 | -0.0009 |
+  | contrast-40% | 0.9051 | 0.9575 | -0.0000 | +0.0001 |
+  | contrast+40% | 0.8172 | 0.8775 | -0.0879 | -0.0800 |
+  | warm | 0.8159 | 0.8849 | -0.0892 | -0.0726 |
+  | cool | 0.8447 | 0.9107 | -0.0605 | -0.0467 |
+  | gamma0.6 | 0.8865 | 0.9451 | -0.0186 | -0.0124 |
+  | gamma1.6 | 0.8713 | 0.9345 | -0.0338 | -0.0230 |
+  | jpeg-q40 | 0.8982 | 0.9529 | -0.0070 | -0.0046 |
+  | jpeg-q20 | 0.8776 | 0.9367 | -0.0275 | -0.0208 |
+
+**[osnet_ain_ms_d_c](https://github.com/PINTO0309/PersonViT/tree/uv#osnet_ain_ms_d_c---22m) — official multi-source OSNet-AIN x1.0, 512-d — untuned reference (not shipped)**
+
+For comparison under the same criteria: the official pre-trained OSNet-AIN weights — the same 2.2M architecture as P-ain-aug, without the unified fine-tuning:
+
+- official dataset eval
+
+  | dataset | queries | gallery | mAP | R1 | R5 | R10 |
+  | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+  | market | 3,368 | 15,913 | 0.4580 | 0.7304 | 0.8655 | 0.9047 |
+  | msmt17 | 11,659 | 82,161 | 0.4869 | 0.7613 | 0.8662 | 0.8965 |
+  | duke_occ | 2,210 | 17,661 | 0.4757 | 0.6167 | 0.7670 | 0.8163 |
+  | cuhk03np | 1,400 | 5,332 | 0.5776 | 0.6079 | 0.7779 | 0.8543 |
+  | occ_reid | 1,000 | 1,000 | 0.7407 | 0.8040 | 0.8970 | 0.9320 |
+
+- official dataset style-shift eval - query only shifted
+
+  | condition | mAP | R1 | dmAP | dR1 |
+  | --- | ---: | ---: | ---: | ---: |
+  | clean | 0.5001 | 0.7310 | — | — |
+  | bright+30% | 0.4945 | 0.7236 | -0.0055 | -0.0074 |
+  | dark-30% | 0.4992 | 0.7307 | -0.0009 | -0.0003 |
+  | contrast-40% | 0.4903 | 0.7220 | -0.0097 | -0.0090 |
+  | contrast+40% | 0.4101 | 0.6127 | -0.0900 | -0.1183 |
+  | warm | 0.4159 | 0.6370 | -0.0841 | -0.0940 |
+  | cool | 0.4340 | 0.6668 | -0.0661 | -0.0642 |
+  | gamma0.6 | 0.4791 | 0.7068 | -0.0210 | -0.0242 |
+  | gamma1.6 | 0.4492 | 0.6788 | -0.0508 | -0.0521 |
+  | jpeg-q40 | 0.4819 | 0.7087 | -0.0182 | -0.0223 |
+  | jpeg-q20 | 0.4379 | 0.6571 | -0.0621 | -0.0738 |
 
 ## Reproduce
 
