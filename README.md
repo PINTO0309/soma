@@ -181,6 +181,50 @@ For comparison under the same criteria: the official pre-trained OSNet-AIN weigh
   | jpeg-q40 | 0.4819 | 0.7087 | -0.0182 | -0.0223 |
   | jpeg-q20 | 0.4379 | 0.6571 | -0.0621 | -0.0738 |
 
+## Fine-tuning ReID Models Using Synthetic Datasets
+
+See: https://github.com/PINTO0309/PersonViT
+
+A synthetic person re-identification (ReID) dataset of 500 fictional adults rendered under 33 fixed camera conditions, generated with the gpt-image-2 model family (quality locked to low).
+
+### Scale and splits
+
+| Item | Value |
+| --- | --- |
+| Total images | 20,000 JPEG |
+| train | 16,000 images (400 ids) |
+| query | 400 images (100 ids, **occluded**: occlusion ratio 0.20–0.50) |
+| gallery | 3,600 images (100 ids, clean) |
+| train/test id overlap | none (p000–p399 / p400–p499) |
+| Image size | 128×256 RGB JPEG (the unified-pipeline standard) |
+
+### Protocol structure (uniform across all ids, verified)
+
+- **40 images/id over 8 cameras/id** (train includes 12 occluded images per id)
+- Eval-id split shape: 4 query + 36 gallery images per id
+- **Exactly 32 cross-camera positives per query** — cross-camera matching is always possible
+- Filenames follow the unified reid convention `p{pid:05d}_d{domain:02d}_c{camera:03d}_{seq:06d}.jpg` (domain `d05`, cameras in the reserved global range `c033`–`c065`)
+
+### Camera system (33 cameras, seed-locked geometry)
+
+Every camera has a seed-locked mounting height, downward pitch, focal length, and derived horizon/eye-level vanishing-line position, grouped　into three view families:
+
+| Family | Downward pitch | Intent |
+| --- | --- | --- |
+| high-wide | ~20–28° | elevated wide-angle (surveillance overhead) |
+| diagonal-medium | ~7–12° | diagonal mid-range |
+| telephoto-exit | ~1.5–4.5° | doorway telephoto (near-horizontal) |
+
+The geometry is recorded in `state/cameras.jsonl`, in the generation　prompts, and in every manifest row (e.g. mounting height 5.44 m / pitch −24.17° / focal 20 mm). Body yaw is also generated in labeled steps (front / front_right / right, ...).
+
+### Generation-pipeline characteristics
+
+- Model family locked to gpt-image-2 (no automatic fallback to another family), quality locked to low, seed 20260815
+- Full generation proceeds only after a 96-image quality pilot and a 96-image body-rotation pilot pass automatic and manual QA
+- Per-camera JPEG quality varies (e.g. 80/82/86) to mimic real-world compression diversity
+
+<img width="680" height="574" alt="image" src="https://github.com/user-attachments/assets/2f86f3b0-37e6-4232-b2d9-a2aa557a397d" />
+
 ## Reproduce
 
 ```bash
