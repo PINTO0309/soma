@@ -8,6 +8,10 @@ The detector slot is deliberately interchangeable, not wedded to that one checkp
 
 SOMA's center of gravity is **recovery from long occlusion loss**: when a person disappears behind an occluder for seconds and re-emerges, they should come back under the *same id*. Frame-to-frame matching is a largely solved problem that every modern tracker handles well; surviving a multi-second gap is not — and it is exactly what the SOMA-R stack above (identity memory, embedding-only revival, appearance-locked extension, ghost coasting) is built for, and what the primary KPI below (`same-id ~1s/~3s/~5s`) scores directly.
 
+https://github.com/user-attachments/assets/9235a9b7-6e09-4860-a393-fd5c8af6d953
+
+https://github.com/user-attachments/assets/0eae42b9-69fe-4382-bfcd-e7edd5707dbc
+
 ## Why SOMA?
 
 The obvious alternative is the classic recipe — ByteTrack-style association on a YOLOX-X detector, plus BoostTrack++ — which looks overwhelmingly strong on the MOT17/MOT20 leaderboards. The research repo behind SOMA measured what those numbers are actually made of, ingredient by ingredient, and found that much of the margin is benchmark artifact, not deployment quality:
