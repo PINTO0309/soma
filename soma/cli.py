@@ -229,8 +229,10 @@ def cmd_table(args) -> None:
 
 # ---- live video (operation check) ------------------------------------------
 
-def _frost(img, boxes, pad=0.15, blocks=6) -> None:
-    """Privacy: frosted-glass ellipse over each (padded) head box."""
+def _frost(img, boxes, pad=0.1, cells=9) -> None:
+    """Privacy: frosted-glass ellipse over each (padded) head box. The mosaic
+    grid is a FIXED cells x cells regardless of head size, so heads stay
+    unidentifiable at any resolution."""
     import cv2
     H, W = img.shape[:2]
     for b in boxes:
@@ -241,7 +243,7 @@ def _frost(img, boxes, pad=0.15, blocks=6) -> None:
             continue
         roi = img[y1:y2, x1:x2]
         rw, rh = x2 - x1, y2 - y1
-        small = cv2.resize(roi, (max(1, rw // blocks), max(1, rh // blocks)),
+        small = cv2.resize(roi, (min(cells, rw), min(cells, rh)),
                            interpolation=cv2.INTER_AREA)
         mosaic = cv2.resize(small, (rw, rh), interpolation=cv2.INTER_NEAREST)
         frosted = cv2.GaussianBlur(mosaic, (0, 0), max(1.5, min(rw, rh) / 12.0))

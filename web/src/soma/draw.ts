@@ -56,15 +56,16 @@ export function drawTracks(ctx: CanvasRenderingContext2D, rows: TrackRow[]): voi
 
 // Privacy: pixelated ellipse over each (padded) head box. Canvas variant of
 // cli.py _frost — draw the region tiny, scale it back up unsmoothed, clip to
-// an ellipse.
+// an ellipse. The mosaic grid is a FIXED cells x cells (default 9x9)
+// regardless of head size, so heads stay unidentifiable at any resolution.
 export function frostHeads(
   ctx: CanvasRenderingContext2D,
   source: CanvasImageSource,
   boxes: Box[],
   frameW: number,
   frameH: number,
-  pad = 0.15,
-  blocks = 6,
+  pad = 0.1,
+  cells = 9,
 ): void {
   for (const b of boxes) {
     const w = b[2] - b[0];
@@ -78,8 +79,8 @@ export function frostHeads(
     if (rw < 2 || rh < 2) {
       continue;
     }
-    const smallW = Math.max(1, Math.floor(rw / blocks));
-    const smallH = Math.max(1, Math.floor(rh / blocks));
+    const smallW = Math.max(1, Math.min(cells, rw));
+    const smallH = Math.max(1, Math.min(cells, rh));
     const tmp = frostHeads.scratch ?? (frostHeads.scratch = document.createElement('canvas'));
     if (tmp.width < smallW || tmp.height < smallH) {
       tmp.width = Math.max(tmp.width, smallW);
