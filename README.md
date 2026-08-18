@@ -289,7 +289,7 @@ web/                  web runtime (Electron + Vite + TypeScript + React + LiteRT
 
 Live SOMA / SOMA-R tracking on a webcam or a video file, fully in-browser inference: LiteRT.js with the **WebGPU** accelerator (or WASM fallback), no python and no server. The tracking core is a line-by-line TypeScript port of `soma/` — same presets (`soma`, `somar-pv`, `somar-os`), same association stack (stage-1 fusion, identity memory, embedding-only revival, ghost coasting, head-mosaic privacy overlay).
 
-<img width="800" alt="image" src="https://github.com/user-attachments/assets/db6e3c07-2b2c-4f0a-a9c4-c69bec9fc685" />
+<img width="800" alt="image" src="https://github.com/user-attachments/assets/4542943b-ab55-460d-8957-60a256f80ea3" />
 
 ```bash
 cd web
