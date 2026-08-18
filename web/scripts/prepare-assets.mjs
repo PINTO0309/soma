@@ -22,7 +22,7 @@ function ensureDir(dirPath) {
 // The LiteRT web runtime assumes FIXED-RESOLUTION float32 models: float16 /
 // quantized exports are excluded from the catalog up front. The "_aug_n_"
 // fine-tune variants are out of scope for the web runtime as well.
-const EXCLUDED_NAME_PATTERN = /float16|int8|integer_quant|dynamic_range|_aug_n_/i;
+const EXCLUDED_NAME_PATTERN = /float16|int8|integer_quant|dynamic_range|_aug_n_|rank5-original|\(copy\)/i;
 
 function listTfliteFiles(dir) {
   if (!existsSync(dir)) {
