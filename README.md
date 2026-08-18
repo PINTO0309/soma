@@ -285,7 +285,7 @@ web/                  web runtime (Electron + Vite + TypeScript + React + LiteRT
   scripts/          asset staging (models + LiteRT wasm), zero-dependency dev runner
 ```
 
-## [WIP] Web runtime (Electron + LiteRT)
+## Web runtime (Electron + LiteRT)
 
 Live SOMA / SOMA-R tracking on a webcam or a video file, fully in-browser inference: LiteRT.js with the **WebGPU** accelerator (or WASM fallback), no python and no server. The tracking core is a line-by-line TypeScript port of `soma/` — same presets (`soma`, `somar-pv`, `somar-os`), same association stack (stage-1 fusion, identity memory, embedding-only revival, ghost coasting, head-mosaic privacy overlay).
 
@@ -310,6 +310,7 @@ Supply-chain hardening: dependencies are pinned to exact versions with the lockf
 - The WebGPU chromium switches in `web/electron/main.ts` (`enable-unsafe-webgpu`, `Vulkan` feature on Linux, ...) are required — without them the GPU is not recognized by LiteRT's WebGPU accelerator. wasm/webgpu error classification follows PINTO0309/litertjs-test.
 - Measured on the CrowdTrack test footage (RTX 3070, LiteRT WebGPU, detector inference per frame): YOLOv9-**N** wb28 ~25 ms (~39 fps end-to-end), **T** wb25 ~26 ms, **S** wb28 ~29 ms, **E** wb28 ~2.7 s — use the N/T/S exports for real-time; the detector slot accepts both the wb28 and wb25 vocabularies (class ids are remapped automatically).
 - SOMA-R note: PersonViT runs ~130 ms/crop on WebGPU; OSNet's depthwise convolutions are pathologically slow on the current LiteRT WebGPU (~1.4 s/crop) — prefer the PersonViT embedder in the web runtime.
+- **Few-person whitening guard** (web-only deviation from the python package): OSNet whitening statistics are computed across the people in a frame, so sparse scenes degenerate them — with 1-2 people the frame mean absorbs the present identities and same-person whitened cosine collapses to ~0-0.2, mis-firing the calibrated `somar-os` gates. The web runtime therefore updates the whitening statistics only on frames with **>= 4** valid embeddings and whitens sparse frames with the frozen statistics (simulated: same-person cosine holds the dense-regime ~0.42 at K=1-2 instead of collapsing); until a dense-enough frame has been seen, the `os` variant withholds embeddings and tracks on geometry alone, because raw OSNet cosines (~0.94 between different people) must never meet the whitened-space thresholds.
 
 ## Models
 

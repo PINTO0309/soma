@@ -117,13 +117,29 @@ export class WebReidEmbedder {
 // Causal embedding whitening — running EMA mean/var of frame embeddings;
 // e' = normalize((e - mu) / sd). Needed for embedders whose raw cosine cone
 // is compressed (OSNet family); PersonViT v3 runs RAW (whiten 0).
+//
+// Few-person guard (deliberate web-only deviation from soma/perception.py):
+// the statistics are computed ACROSS the people in a frame, so sparse scenes
+// degenerate them — with 1 person the frame variance is identically zero
+// (EMA decays to the floor) and the mean absorbs that person's identity,
+// collapsing same-person whitened cosine to ~0 and mis-firing the calibrated
+// somar-os gates. Stats therefore update only on frames with at least
+// MIN_STATS_ROWS valid embeddings; sparse frames whiten with the FROZEN
+// stats (measured: same-person cosine stays at the dense-regime ~0.42 for
+// K=1-2 instead of collapsing to 0-0.2). Until a dense-enough frame has been
+// seen, embeddings are withheld (zeroed) — raw OSNet cosines (~0.94 between
+// DIFFERENT people) must never reach the whitened-space thresholds.
+export const WHITEN_MIN_STATS_ROWS = 4;
+
 export class CausalWhitener {
   private alpha: number;
+  private minStatsRows: number;
   private mu: Float64Array | null = null;
   private varr: Float64Array | null = null;
 
-  constructor(alpha: number) {
+  constructor(alpha: number, minStatsRows = WHITEN_MIN_STATS_ROWS) {
     this.alpha = alpha;
+    this.minStatsRows = minStatsRows;
   }
 
   get enabled(): boolean {
@@ -142,15 +158,15 @@ export class CausalWhitener {
       }
       return s > 0.5;
     });
-    if (ok.some(Boolean)) {
+    let cnt = 0;
+    for (let k = 0; k < embs.length; k += 1) {
+      if (ok[k]) {
+        cnt += 1;
+      }
+    }
+    if (cnt >= this.minStatsRows) {
       const fm = new Float64Array(dim);
       const fv = new Float64Array(dim);
-      let cnt = 0;
-      for (let k = 0; k < embs.length; k += 1) {
-        if (ok[k]) {
-          cnt += 1;
-        }
-      }
       for (let k = 0; k < embs.length; k += 1) {
         if (!ok[k]) {
           continue;
@@ -180,7 +196,9 @@ export class CausalWhitener {
       }
     }
     if (this.mu === null || this.varr === null) {
-      return embs;
+      // whitening requested but no dense-enough frame seen yet: withhold
+      // appearance evidence entirely (the tracker falls back to geometry)
+      return embs.map(() => new Float32Array(dim));
     }
     const mu = this.mu;
     const varr = this.varr;
