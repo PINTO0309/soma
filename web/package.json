@@ -1,0 +1,36 @@
+{
+  "name": "soma-web",
+  "version": "1.0.0",
+  "description": "SOMA web runtime: Electron + Vite + TypeScript + React + LiteRT (wasm/webgpu) live tracking on webcam or video files",
+  "private": true,
+  "main": "dist-electron/main.js",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=10.16.0"
+  },
+  "scripts": {
+    "preinstall": "node scripts/require-pnpm.mjs",
+    "postinstall": "node scripts/prepare-assets.mjs && node scripts/ensure-electron.mjs",
+    "prepare:assets": "node scripts/prepare-assets.mjs",
+    "dev": "node scripts/prepare-assets.mjs && node scripts/dev.mjs",
+    "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.electron.json --noEmit",
+    "build": "node scripts/prepare-assets.mjs && npm run typecheck && vite build && tsc -p tsconfig.electron.json",
+    "start": "npm run build && node scripts/run-electron.mjs dist-electron/main.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@litertjs/core": "2.5.2",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@types/node": "25.9.5",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
+    "@vitejs/plugin-react": "5.2.0",
+    "electron": "43.3.0",
+    "typescript": "5.9.3",
+    "vite": "7.3.6"
+  }
+}
