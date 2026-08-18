@@ -77,9 +77,15 @@ function defaultDetectorId(list: ModelEntry[]): string {
 }
 
 // ReID list: never detector models; under the pv/os variants only the
-// matching embedder family is listed.
+// matching embedder family is listed. For the ort runtime the N-batch
+// "_aug_n" .onnx exports (the python-validated canonical models, batched
+// webgpu inference) are the only ones listed; LiteRT keeps the batch-1
+// "aug" exports (its runtime cannot run N-batch).
 function isReidEntry(m: ModelEntry, variant: VariantId): boolean {
   if (!isReidName(m.label)) {
+    return false;
+  }
+  if (RUNTIME === 'ort' && !/_aug_n\./i.test(m.label)) {
     return false;
   }
   const pv = /personvit/i.test(m.label);

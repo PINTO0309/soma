@@ -318,7 +318,7 @@ pnpm run start -- --web-inference-worker main
 Supply-chain hardening: dependencies are pinned to exact versions with the lockfile committed (`pnpm audit` clean), dependency build scripts are blocked except electron/esbuild, and `minimumReleaseAge: 10080` in `pnpm-workspace.yaml` quarantines any package version published less than **7 days** ago — a freshly compromised release cannot enter the project (this is why electron is pinned to 43.3.0 rather than the 6-day-old 43.4.0; both are outside the advisory range of GHSA-9f4c-93c8-jc8g).
 
 - **Model switching is user-driven**: the detection model and the ReID model are selected independently in the UI from the staged catalog (`web/models/` and `models/`); the ReID list follows the selected variant (PersonViT / OSNet-AIN).
-- **Two inference runtimes**: LiteRT.js (`.tflite`, default) and onnxruntime-web (`.onnx`) behind one engine interface, switchable from the GUI's Runtime selector (or the `--runtime=ort` startup option). The ort runtime accepts dynamic-shape exports and runs single-threaded wasm orchestration under its WebGPU EP (performance: table below).
+- **Two inference runtimes**: LiteRT.js (`.tflite`, default) and onnxruntime-web (`.onnx`) behind one engine interface, switchable from the GUI's Runtime selector (or the `--runtime=ort` startup option). The ort runtime accepts dynamic-shape exports and treats the **N-batch `_aug_n` ReID exports as canonical** (the python-validated models): all crops of a frame run in ONE batched WebGPU inference, padded to power-of-two buckets — verified cosine-1.0 parity with per-crop runs at ~2.9x the throughput. LiteRT cannot run N-batch (its runtime pins the compiled input to batch 1 and its WebGPU delegate rejects dynamic-batch graphs), so it keeps the batch-1 `aug` exports.
 - **Dedicated inference worker by default** (the `--web-inference-worker dedicated` design of PINTO0309/screen-eye-tracking): the whole perception + tracking pipeline runs in a worker, keeping the UI thread free — SOMA-R (LiteRT/PersonViT) improves from ~7.4 to **~9.2 fps** end-to-end. `--web-inference-worker main` runs the engines on the UI thread instead.
 - **Premises**: LiteRT runs **fixed-resolution float32** exports. Dynamic spatial shapes (`Nx3HxW`) and non-float32 inputs are rejected up front with a readable message (float16/quantized files are filtered out of the catalog); a dynamic batch dim is fine.
 - **Measured performance** (CrowdTrack test footage, RTX 3070, WebGPU, default dedicated worker):
@@ -327,7 +327,7 @@ Supply-chain hardening: dependencies are pinned to exact versions with the lockf
   |---|---:|---:|---:|
   | SOMA (no ReID) — LiteRT, YOLOv9-N | ~25 ms | — | ~39 fps |
   | SOMA-R pv — LiteRT, YOLOv9-S + PersonViT | ~24 ms | ~9 ms | **~9.2 fps** |
-  | SOMA-R pv — onnxruntime-web, YOLOv9-S + PersonViT | ~31 ms | ~13 ms | ~6.4 fps |
+  | SOMA-R pv — onnxruntime-web, YOLOv9-S + PersonViT (N-batch) | ~29 ms | ~6 ms (batched) | **~9.9 fps** |
   | (reference) LiteRT, YOLOv9-E | ~2.7 s | — | 0.4 fps |
 
   Use the N/T/S detector exports for real-time; the detector slot accepts both the wb28 and wb25 vocabularies (class ids are remapped automatically).

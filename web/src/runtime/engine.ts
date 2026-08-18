@@ -21,6 +21,10 @@ export interface EngineModel {
   // to 1); null when unknown before the first run
   outputDims: number[][] | null;
   run(input: Float32Array): Promise<EngineOutput[]>;
+  // N-batch execution for engines whose models carry a dynamic batch dim
+  // (onnxruntime-web with the _aug_n exports); absent on LiteRT, whose
+  // runtime pins the compiled input shape to batch 1.
+  runBatched?(input: Float32Array, batch: number): Promise<EngineOutput[]>;
   dispose(): void;
 }
 
