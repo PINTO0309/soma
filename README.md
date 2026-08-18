@@ -257,8 +257,12 @@ soma-eval video \
 
 ## Package layout
 
+The repository is split at the top level: `soma/` is the python package
+(ONNX / TensorRT, benchmark + evaluation), `web/` is the standalone web
+runtime (Electron + LiteRT) — neither imports the other.
+
 ```
-soma/
+soma/                 python package (benchmark & evaluation stack)
   detector.py     wb28 ONNX inference (stretch/letterbox, TRT/CUDA/CPU)
   assembly.py     detections -> per-person part groups (bone joining)
   tokens.py       part groups -> anatomical tokens (+ amodal synthesis)
@@ -270,7 +274,40 @@ soma/
   metrics.py      CLEAR/ID + HOTA + gap-recovery evaluator
   mot.py          MOT-format dataset access
   cli.py          soma-eval: cache / run / bench / table / video
+
+web/                  web runtime (Electron + Vite + TypeScript + React + LiteRT)
+  electron/         main process (WebGPU command-line switches, COOP/COEP)
+  src/runtime/      LiteRT load/compile/run + wasm/webgpu exception handling,
+                    webcam helper
+  src/soma/         TypeScript port of the tracking stack (constants, assembly,
+                    tokens, kalman, matching, tracker, presets, detector/reid
+                    inference, pipeline, canvas overlay)
+  scripts/          asset staging (models + LiteRT wasm), zero-dependency dev runner
 ```
+
+## Web runtime (Electron + LiteRT)
+
+Live SOMA / SOMA-R tracking on a webcam or a video file, fully in-browser inference: LiteRT.js with the **WebGPU** accelerator (or WASM fallback), no python and no server. The tracking core is a line-by-line TypeScript port of `soma/` — same presets (`soma`, `somar-pv`, `somar-os`), same association stack (stage-1 fusion, identity memory, embedding-only revival, ghost coasting, head-mosaic privacy overlay).
+
+```bash
+cd web
+pnpm install           # pnpm >= 10.16 REQUIRED (npm/yarn installs are blocked)
+# models: drop fixed-resolution float32 .tflite exports into web/models/ or ../models/
+#   yolov9_n_wholebody28_refine_1x3x640x640_float32.tflite   (detector; N/T/S = real-time)
+#   personvit_vits16_ain_unified_aug_float32.tflite          (SOMA-R ReID, 384-d)
+#   osnet_ain_x1_0_p_unified_aug_float32.tflite              (SOMA-R ReID, 512-d)
+# ("_aug_n_" exports and float16/quantized files are out of scope and filtered out)
+pnpm run dev           # vite + electron (dev)
+pnpm run start         # production build + launch
+```
+
+Supply-chain hardening: dependencies are pinned to exact versions with the lockfile committed (`pnpm audit` clean), dependency build scripts are blocked except electron/esbuild, and `minimumReleaseAge: 10080` in `pnpm-workspace.yaml` quarantines any package version published less than **7 days** ago — a freshly compromised release cannot enter the project (this is why electron is pinned to 43.3.0 rather than the 6-day-old 43.4.0; both are outside the advisory range of GHSA-9f4c-93c8-jc8g).
+
+- **Model switching is user-driven**: the detection model and the ReID model are selected independently in the UI from the staged catalog (`web/models/` and `models/`); the ReID list follows the selected variant (PersonViT / OSNet-AIN).
+- **Premises**: LiteRT runs **fixed-resolution float32** exports. Dynamic spatial shapes (`Nx3HxW`) and non-float32 inputs are rejected up front with a readable message (float16/quantized files are filtered out of the catalog); a dynamic batch dim is fine.
+- The WebGPU chromium switches in `web/electron/main.ts` (`enable-unsafe-webgpu`, `Vulkan` feature on Linux, ...) are required — without them the GPU is not recognized by LiteRT's WebGPU accelerator. wasm/webgpu error classification follows PINTO0309/litertjs-test.
+- Measured on the CrowdTrack test footage (RTX 3070, LiteRT WebGPU, detector inference per frame): YOLOv9-**N** wb28 ~25 ms (~39 fps end-to-end), **T** wb25 ~26 ms, **S** wb28 ~29 ms, **E** wb28 ~2.7 s — use the N/T/S exports for real-time; the detector slot accepts both the wb28 and wb25 vocabularies (class ids are remapped automatically).
+- SOMA-R note: PersonViT runs ~130 ms/crop on WebGPU; OSNet's depthwise convolutions are pathologically slow on the current LiteRT WebGPU (~1.4 s/crop) — prefer the PersonViT embedder in the web runtime.
 
 ## Models
 
