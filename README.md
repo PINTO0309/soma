@@ -292,6 +292,12 @@ Live SOMA / SOMA-R tracking on a webcam or a video file, fully in-browser infere
 <img width="1000" alt="image" src="https://github.com/user-attachments/assets/6a48521c-9fa6-4907-9283-7992579f2629" />
 
 ```bash
+# pnpm setup (>= 10.16 required; the repo pins pnpm@10.33.0 via the
+# "packageManager" field, which corepack picks up automatically):
+corepack enable pnpm                       # Node >= 22 ships corepack
+#   or: npm install -g pnpm@10.33.0
+#   or: curl -fsSL https://get.pnpm.io/install.sh | sh -
+
 cd web
 pnpm install           # pnpm >= 10.16 REQUIRED (npm/yarn installs are blocked)
 # models: drop model exports into web/models/ or ../models/
@@ -315,7 +321,6 @@ Supply-chain hardening: dependencies are pinned to exact versions with the lockf
 - **Two inference runtimes**: LiteRT.js (`.tflite`, default) and onnxruntime-web (`.onnx`) behind one engine interface, switchable from the GUI's Runtime selector (or the `--runtime=ort` startup option). The ort runtime accepts dynamic-shape exports and runs single-threaded wasm orchestration under its WebGPU EP (performance: table below).
 - **Dedicated inference worker by default** (the `--web-inference-worker dedicated` design of PINTO0309/screen-eye-tracking): the whole perception + tracking pipeline runs in a worker, keeping the UI thread free — SOMA-R (LiteRT/PersonViT) improves from ~7.4 to **~9.2 fps** end-to-end. `--web-inference-worker main` runs the engines on the UI thread instead.
 - **Premises**: LiteRT runs **fixed-resolution float32** exports. Dynamic spatial shapes (`Nx3HxW`) and non-float32 inputs are rejected up front with a readable message (float16/quantized files are filtered out of the catalog); a dynamic batch dim is fine.
-- The WebGPU chromium switches in `web/electron/main.ts` (`enable-unsafe-webgpu`, `Vulkan` feature on Linux, ...) are required — without them the GPU is not recognized by LiteRT's WebGPU accelerator. wasm/webgpu error classification follows PINTO0309/litertjs-test.
 - **Measured performance** (CrowdTrack test footage, RTX 3070, WebGPU, default dedicated worker):
 
   | configuration | detector / frame | ReID / crop | end-to-end |
