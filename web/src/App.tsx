@@ -441,8 +441,9 @@ export default function App() {
       <section className="card controls-card">
         <h1>SOMA Web</h1>
         <p className="subtle">
-          Electron + Vite + TypeScript + React + {RUNTIME_LABEL} ({webgpuOk ? 'WebGPU/WASM' : 'WASM only'}) —
+          Electron + Vite + TypeScript + React + LiteRT / ONNX Runtime Web —
           runs the SOMA / SOMA-R tracker in real time on a webcam or a video file.
+          Active runtime: {RUNTIME_LABEL} ({webgpuOk ? 'WebGPU/WASM' : 'WASM only'}).
         </p>
 
         <div className="control-grid">
