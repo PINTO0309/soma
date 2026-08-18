@@ -13,8 +13,9 @@ import {
   type Tensor as LiteRtTensor,
   type TypedArray as LiteRtTypedArray,
 } from '@litertjs/core';
+import { assetUrl, type Accelerator as EngineAccelerator, type EngineModel, type EngineOutput } from './engine';
 
-const LITERT_WASM_PATH = './wasm/litert/';
+const litertWasmPath = (): string => assetUrl('wasm/litert/');
 const WEBGPU_INIT_WARN_PREFIX = 'Failed to create default WebGPU device:';
 const STATIC_TENSOR_DELEGATE_WARNING_FRAGMENT =
   'Attempting to use a delegate that only supports static-sized tensors';
@@ -43,6 +44,20 @@ type OperatorAnalysisResult =
 let liteRtLoadPromise: Promise<void> | null = null;
 let liteRtLoadedWithThreads: boolean | null = null;
 
+// Emscripten resolves auxiliary files against the executing script's
+// directory, which inside a blob-URL worker is an invalid base — install a
+// global locateFile that anchors every file to the absolute wasm base
+// (same fix as PINTO0309/screen-eye-tracking).
+function installLiteRtFileLocator(wasmBaseUrl: string): void {
+  const target = globalThis as typeof globalThis & {
+    Module?: { locateFile?: (filename: string, scriptDirectory?: string) => string };
+  };
+  target.Module = {
+    ...(target.Module ?? {}),
+    locateFile: (filename: string) => new URL(filename, wasmBaseUrl).toString(),
+  };
+}
+
 export async function ensureLiteRtLoaded(threads: boolean): Promise<void> {
   if (liteRtLoadPromise && liteRtLoadedWithThreads !== null && liteRtLoadedWithThreads !== threads) {
     // The runtime can only be initialized once per page; keep the first mode.
@@ -50,6 +65,7 @@ export async function ensureLiteRtLoaded(threads: boolean): Promise<void> {
   }
   if (!liteRtLoadPromise) {
     liteRtLoadedWithThreads = threads;
+    installLiteRtFileLocator(litertWasmPath());
     liteRtLoadPromise = (async () => {
       const originalWarn = console.warn;
       console.warn = (...args: unknown[]) => {
@@ -61,7 +77,7 @@ export async function ensureLiteRtLoaded(threads: boolean): Promise<void> {
       };
 
       try {
-        await loadLiteRt(LITERT_WASM_PATH, { threads });
+        await loadLiteRt(litertWasmPath(), { threads });
       } finally {
         console.warn = originalWarn;
       }
@@ -478,6 +494,29 @@ export async function runModel(
 
 export function outputShapes(loaded: LoadedModel): number[][] {
   return loaded.model.getOutputDetails().map((d) => Array.from(d.shape).map((v) => (v > 0 ? v : 1)));
+}
+
+// EngineModel adapter (shared interface with the onnxruntime-web engine).
+export async function loadLitertModel(
+  bytes: Uint8Array,
+  accelerator: EngineAccelerator,
+  numThreads: number,
+): Promise<EngineModel> {
+  const loaded = await loadModel(bytes, accelerator as Accelerator, numThreads);
+  const outputDims = outputShapes(loaded);
+  return {
+    runtime: 'litert',
+    accelerator,
+    layout: loaded.layout,
+    inHeight: loaded.inHeight,
+    inWidth: loaded.inWidth,
+    outputDims,
+    async run(input: Float32Array): Promise<EngineOutput[]> {
+      const outputs = await runModel(loaded, input);
+      return outputs.map((data, i) => ({ data, dims: outputDims[i] ?? [data.length] }));
+    },
+    dispose: () => loaded.dispose(),
+  };
 }
 
 export { isWebGPUSupported };

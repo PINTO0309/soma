@@ -2,15 +2,15 @@
 // Port of soma/reid.py (batch 1, "half" normalization (x/255 - 0.5) / 0.5)
 // plus the causal embedding whitening from soma/perception.py.
 
-import type { LoadedModel } from '../runtime/litert';
-import { runModel } from '../runtime/litert';
+import { create2dContext, type Any2DContext } from '../runtime/canvas';
+import type { EngineModel } from '../runtime/engine';
 import type { Box } from './types';
 
 export interface ReidFrameSource {
   // Draws the sub-rectangle (sx, sy, sw, sh) of the current frame into ctx
   // scaled to (dw, dh).
   drawCrop: (
-    ctx: CanvasRenderingContext2D,
+    ctx: Any2DContext,
     sx: number,
     sy: number,
     sw: number,
@@ -23,32 +23,26 @@ export interface ReidFrameSource {
 }
 
 export class WebReidEmbedder {
-  private loaded: LoadedModel;
-  private canvas: HTMLCanvasElement;
-  private ctx: CanvasRenderingContext2D;
+  private engine: EngineModel;
+  private ctx: Any2DContext;
   private input: Float32Array;
-  readonly outDim: number;
+  private outDim: number;
 
-  constructor(loaded: LoadedModel) {
-    this.loaded = loaded;
-    this.canvas = document.createElement('canvas');
-    this.canvas.width = loaded.inWidth;
-    this.canvas.height = loaded.inHeight;
-    const ctx = this.canvas.getContext('2d', { willReadFrequently: true });
-    if (!ctx) {
-      throw new Error('2D canvas context unavailable');
-    }
-    this.ctx = ctx;
-    this.input = new Float32Array(loaded.inWidth * loaded.inHeight * 3);
-    const outShape = loaded.model.getOutputDetails()[0].shape;
-    const last = outShape[outShape.length - 1];
-    this.outDim = last > 0 ? last : 768;
+  constructor(engine: EngineModel) {
+    this.engine = engine;
+    this.ctx = create2dContext(engine.inWidth, engine.inHeight);
+    this.input = new Float32Array(engine.inWidth * engine.inHeight * 3);
+    // static output dim when the runtime exposes it; else established from
+    // the first inference result
+    const outShape = engine.outputDims?.[0];
+    const last = outShape && outShape.length > 0 ? outShape[outShape.length - 1] : 0;
+    this.outDim = last > 1 ? last : 0;
   }
 
   // boxes: frame coords -> (N, outDim); degenerate crops get zero vectors.
   async embed(src: ReidFrameSource, boxes: Box[]): Promise<Float32Array[]> {
-    const { inWidth: w, inHeight: h, layout } = this.loaded;
-    const out: Float32Array[] = boxes.map(() => new Float32Array(this.outDim));
+    const { inWidth: w, inHeight: h, layout } = this.engine;
+    const results: Array<Float32Array | null> = boxes.map(() => null);
     for (let k = 0; k < boxes.length; k += 1) {
       const b = boxes[k];
       const x1 = Math.max(Math.floor(b[0]), 0);
@@ -76,41 +70,35 @@ export class WebReidEmbedder {
           inp[i * 3 + 2] = rgba[i * 4 + 2] / 127.5 - 1.0;
         }
       }
-      const results = await runModel(this.loaded, this.input);
-      let e = results[0];
-      if (e.length !== this.outDim) {
+      const outputs = await this.engine.run(this.input);
+      let e = outputs[0].data;
+      if (this.outDim > 0 && e.length !== this.outDim) {
         // Some exports emit [1, D]; some emit extra outputs — take the first
         // output whose length matches the declared dim.
-        const match = results.find((r) => r.length === this.outDim);
+        const match = outputs.find((o) => o.data.length === this.outDim);
         if (match) {
-          e = match;
+          e = match.data;
         }
+      }
+      if (this.outDim === 0) {
+        this.outDim = e.length;
       }
       let norm = 0;
       for (let i = 0; i < e.length; i += 1) {
         norm += e[i] * e[i];
       }
       norm = Math.sqrt(norm) + 1e-9;
-      const dst = out[k];
+      const dst = new Float32Array(this.outDim);
       const dim = Math.min(e.length, this.outDim);
-      let finite = true;
       for (let i = 0; i < dim; i += 1) {
         const v = e[i] / norm;
-        dst[i] = Number.isFinite(v) ? v : 0;
-        if (!Number.isFinite(v)) {
-          finite = false;
-        }
-      }
-      if (!finite) {
         // non-finite guard, matching soma/reid.py
-        for (let i = 0; i < dim; i += 1) {
-          if (!Number.isFinite(dst[i])) {
-            dst[i] = 0;
-          }
-        }
+        dst[i] = Number.isFinite(v) ? v : 0;
       }
+      results[k] = dst;
     }
-    return out;
+    const dim = Math.max(this.outDim, 1);
+    return results.map((r) => r ?? new Float32Array(dim));
   }
 }
 

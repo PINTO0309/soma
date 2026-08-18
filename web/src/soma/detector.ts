@@ -1,49 +1,42 @@
-// Whole-frame wholebody detector on LiteRT. Port of soma/detector.py
-// (stretch preprocessing, raw YOLO head postprocess, wb28 -> wb49 id mapping)
-// extended to also accept post-processed [N, 7] detector exports
-// (batchno_classid_score_x1y1x2y2 — the PINTO_model_zoo "post" variants).
+// Whole-frame wholebody detector on the shared inference engine (LiteRT or
+// onnxruntime-web). Port of soma/detector.py (stretch preprocessing, raw
+// YOLO head postprocess, wb28 -> wb49 id mapping) extended to also accept
+// post-processed [N, 7] detector exports (batchno_classid_score_x1y1x2y2 —
+// the PINTO_model_zoo "post" variants).
 
 import * as C from './constants';
-import type { LoadedModel } from '../runtime/litert';
-import { runModel } from '../runtime/litert';
+import { create2dContext, type Any2DContext } from '../runtime/canvas';
+import type { EngineModel } from '../runtime/engine';
 import type { Detections } from './types';
 
 const RAW_SCORE_THRESHOLD = 0.05;
 
 export interface DetectorFrameSource {
   // Draws the current frame into ctx at (0,0) with the given size.
-  draw: (ctx: CanvasRenderingContext2D, w: number, h: number) => void;
+  draw: (ctx: Any2DContext, w: number, h: number) => void;
   width: number;
   height: number;
 }
 
 export class WebDetector {
-  private loaded: LoadedModel;
-  private canvas: HTMLCanvasElement;
-  private ctx: CanvasRenderingContext2D;
+  private engine: EngineModel;
+  private ctx: Any2DContext;
   private input: Float32Array;
   private classCount: number | null = null;
 
-  constructor(loaded: LoadedModel) {
-    this.loaded = loaded;
-    this.canvas = document.createElement('canvas');
-    this.canvas.width = loaded.inWidth;
-    this.canvas.height = loaded.inHeight;
-    const ctx = this.canvas.getContext('2d', { willReadFrequently: true });
-    if (!ctx) {
-      throw new Error('2D canvas context unavailable');
-    }
-    this.ctx = ctx;
-    this.input = new Float32Array(loaded.inWidth * loaded.inHeight * 3);
+  constructor(engine: EngineModel) {
+    this.engine = engine;
+    this.ctx = create2dContext(engine.inWidth, engine.inHeight);
+    this.input = new Float32Array(engine.inWidth * engine.inHeight * 3);
   }
 
   get inputSize(): [number, number] {
-    return [this.loaded.inWidth, this.loaded.inHeight];
+    return [this.engine.inWidth, this.engine.inHeight];
   }
 
   // stretch preprocessing: RGB, x/255, NCHW or NHWC to match the model.
   private preprocess(src: DetectorFrameSource): void {
-    const { inWidth: w, inHeight: h, layout } = this.loaded;
+    const { inWidth: w, inHeight: h, layout } = this.engine;
     src.draw(this.ctx, w, h);
     const rgba = this.ctx.getImageData(0, 0, w, h).data;
     const n = w * h;
@@ -75,27 +68,23 @@ export class WebDetector {
   }
 
   async detect(src: DetectorFrameSource): Promise<Detections> {
-    const { inWidth, inHeight } = this.loaded;
+    const { inWidth, inHeight } = this.engine;
     const sx = inWidth / src.width;
     const sy = inHeight / src.height;
     this.preprocess(src);
-    const outputs = await runModel(this.loaded, this.input);
-    const shapes = this.loaded.model
-      .getOutputDetails()
-      .map((d) => Array.from(d.shape).map((v) => (v > 0 ? v : 1)));
+    const outputs = await this.engine.run(this.input);
 
     const labels: number[] = [];
     const boxes: number[] = [];
     const scores: number[] = [];
 
-    // Pick the primary output: prefer a rank-3 [1, X, Y]; else rank-2.
-    let out = outputs[0];
-    let dims = shapes[0] ?? [out.length];
-    for (let i = 0; i < outputs.length; i += 1) {
-      const d = shapes[i] ?? [];
-      if (d.length >= 2 && outputs[i].length >= out.length) {
-        out = outputs[i];
-        dims = d;
+    // Pick the primary output: prefer the largest tensor of rank >= 2.
+    let out = outputs[0].data;
+    let dims = outputs[0].dims;
+    for (const o of outputs) {
+      if (o.dims.length >= 2 && o.data.length >= out.length) {
+        out = o.data;
+        dims = o.dims;
       }
     }
     while (dims.length > 2 && dims[0] === 1) {

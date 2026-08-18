@@ -294,18 +294,26 @@ Live SOMA / SOMA-R tracking on a webcam or a video file, fully in-browser infere
 ```bash
 cd web
 pnpm install           # pnpm >= 10.16 REQUIRED (npm/yarn installs are blocked)
-# models: drop fixed-resolution float32 .tflite exports into web/models/ or ../models/
-#   yolov9_n_wholebody28_refine_1x3x640x640_float32.tflite   (detector; N/T/S = real-time)
-#   personvit_vits16_ain_unified_aug_float32.tflite          (SOMA-R ReID, 384-d)
-#   osnet_ain_x1_0_p_unified_aug_float32.tflite              (SOMA-R ReID, 512-d)
-# ("_aug_n_" exports and float16/quantized files are out of scope and filtered out)
-pnpm run dev           # vite + electron (dev)
-pnpm run start         # production build + launch
+# models: drop model exports into web/models/ or ../models/
+#   LiteRT runtime (default): fixed-resolution float32 .tflite exports
+#     yolov9_n_wholebody28_refine_1x3x640x640_float32.tflite (detector; N/T/S = real-time)
+#     personvit_vits16_ain_unified_aug_float32.tflite        (SOMA-R ReID, 384-d)
+#     osnet_ain_x1_0_p_unified_aug_float32.tflite            (SOMA-R ReID, 512-d)
+#     ("_aug_n_" exports and float16/quantized files are out of scope and filtered out)
+#   onnxruntime-web runtime (--runtime=ort): .onnx exports (dynamic shapes allowed)
+pnpm run dev                          # vite + electron (dev)
+pnpm run start                        # production build + launch
+# runtime is switchable in the GUI (Runtime selector, top of the left pane);
+# --runtime=ort merely sets the initial value. Inference runs in a dedicated
+# worker by default; opt out with:
+pnpm run start -- --web-inference-worker main
 ```
 
 Supply-chain hardening: dependencies are pinned to exact versions with the lockfile committed (`pnpm audit` clean), dependency build scripts are blocked except electron/esbuild, and `minimumReleaseAge: 10080` in `pnpm-workspace.yaml` quarantines any package version published less than **7 days** ago — a freshly compromised release cannot enter the project (this is why electron is pinned to 43.3.0 rather than the 6-day-old 43.4.0; both are outside the advisory range of GHSA-9f4c-93c8-jc8g).
 
 - **Model switching is user-driven**: the detection model and the ReID model are selected independently in the UI from the staged catalog (`web/models/` and `models/`); the ReID list follows the selected variant (PersonViT / OSNet-AIN).
+- **Two inference runtimes**: LiteRT.js (`.tflite`, default) and onnxruntime-web (`.onnx`) behind one engine interface, switchable from the GUI's Runtime selector (or the `--runtime=ort` startup option). The ort runtime accepts dynamic-shape exports and runs single-threaded wasm orchestration under its WebGPU EP (measured: YOLOv9-S ~31 ms/frame, PersonViT ~13 ms/crop, SOMA-R ~6.4 fps end-to-end).
+- **Dedicated inference worker by default** (the `--web-inference-worker dedicated` design of PINTO0309/screen-eye-tracking): the whole perception + tracking pipeline runs in a worker, keeping the UI thread free — SOMA-R (LiteRT/PersonViT) improves from ~7.4 to **~9.2 fps** end-to-end. `--web-inference-worker main` runs the engines on the UI thread instead.
 - **Premises**: LiteRT runs **fixed-resolution float32** exports. Dynamic spatial shapes (`Nx3HxW`) and non-float32 inputs are rejected up front with a readable message (float16/quantized files are filtered out of the catalog); a dynamic batch dim is fine.
 - The WebGPU chromium switches in `web/electron/main.ts` (`enable-unsafe-webgpu`, `Vulkan` feature on Linux, ...) are required — without them the GPU is not recognized by LiteRT's WebGPU accelerator. wasm/webgpu error classification follows PINTO0309/litertjs-test.
 - Measured on the CrowdTrack test footage (RTX 3070, LiteRT WebGPU, detector inference per frame): YOLOv9-**N** wb28 ~25 ms (~39 fps end-to-end), **T** wb25 ~26 ms, **S** wb28 ~29 ms, **E** wb28 ~2.7 s — use the N/T/S exports for real-time; the detector slot accepts both the wb28 and wb25 vocabularies (class ids are remapped automatically).

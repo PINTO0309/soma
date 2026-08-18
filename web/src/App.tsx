@@ -1,11 +1,34 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { listCameras, openCamera, stopStream, type CameraDevice } from './runtime/camera';
-import { fetchModelBytes, isWebGPUSupported, loadModel, type Accelerator, type LoadedModel } from './runtime/litert';
+import { activeRuntime, activeWorkerMode, modelExtension, type Accelerator, type EngineModel } from './runtime/engine';
+import { fetchModelBytes, isWebGPUSupported, loadLitertModel } from './runtime/litert';
+import { loadOrtModel } from './runtime/ort';
+import { WorkerPipeline } from './runtime/workerClient';
 import { drawTracks, frostHeads } from './soma/draw';
 import { SomaPipeline, makeTrackerConfig, type FrameSource } from './soma/pipeline';
 import { PRESETS, VARIANTS, type VariantId } from './soma/presets';
 import { WebDetector } from './soma/detector';
 import { WebReidEmbedder } from './soma/reid';
+
+// Selected via the --runtime=litert|ort CLI option (plumbed through electron
+// as a ?runtime= query parameter). LiteRT runs .tflite, ort runs .onnx.
+const RUNTIME = activeRuntime();
+const RUNTIME_LABEL = RUNTIME === 'ort' ? 'onnxruntime-web' : 'LiteRT';
+const MODEL_EXT = modelExtension(RUNTIME);
+const loadEngineModel = RUNTIME === 'ort' ? loadOrtModel : loadLitertModel;
+// Inference execution mode: dedicated worker by default;
+// --web-inference-worker=main runs the engines on the UI thread instead.
+const WORKER_MODE = activeWorkerMode();
+
+// The runtime is fixed per page load (each engine's wasm runtime can only be
+// initialized once); the GUI selector switches it by reloading the page with
+// the updated query parameter — the --runtime CLI option is just the
+// initial value.
+function switchRuntime(next: string): void {
+  const params = new URLSearchParams(window.location.search);
+  params.set('runtime', next === 'ort' ? 'ort' : 'litert');
+  window.location.search = params.toString();
+}
 
 interface ModelEntry {
   id: string;
@@ -32,9 +55,9 @@ function isReidName(label: string): boolean {
 }
 
 function isDetectorEntry(m: ModelEntry): boolean {
-  // dynamic-shape exports (Nx3HxW) are rejected at load time anyway — keep
-  // them out of the list entirely
-  if (/nx3hxw/i.test(m.label)) {
+  // LiteRT rejects dynamic-shape exports (Nx3HxW) at load time — keep them
+  // out of its list entirely; onnxruntime-web handles dynamic shapes.
+  if (RUNTIME === 'litert' && /nx3hxw/i.test(m.label)) {
     return false;
   }
   return !isReidName(m.label);
@@ -91,13 +114,16 @@ export default function App() {
   const [running, setRunning] = useState<boolean>(false);
   const [status, setStatus] = useState<string>('Idle');
   const [stats, setStats] = useState<RunStats | null>(null);
-  const [webgpuOk] = useState<boolean>(() => isWebGPUSupported());
+  const [webgpuOk] = useState<boolean>(() =>
+    RUNTIME === 'litert' ? isWebGPUSupported() : 'gpu' in navigator,
+  );
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const runningRef = useRef<boolean>(false);
   const streamRef = useRef<MediaStream | null>(null);
-  const loadedModelsRef = useRef<LoadedModel[]>([]);
+  const loadedModelsRef = useRef<EngineModel[]>([]);
+  const workerPipelineRef = useRef<WorkerPipeline | null>(null);
 
   // ---- model catalog ------------------------------------------------------
   useEffect(() => {
@@ -116,7 +142,7 @@ export default function App() {
           throw new Error('Invalid model manifest format.');
         }
         const entries: ModelEntry[] = names
-          .filter((v): v is string => typeof v === 'string' && v.endsWith('.tflite'))
+          .filter((v): v is string => typeof v === 'string' && v.endsWith(MODEL_EXT))
           .map((name) => ({ id: name, label: name, url: `./models/${name}` }));
         setModels(entries);
         setCatalogError(null);
@@ -184,6 +210,8 @@ export default function App() {
       }
     }
     loadedModelsRef.current = [];
+    workerPipelineRef.current?.dispose();
+    workerPipelineRef.current = null;
     const video = videoRef.current;
     if (video) {
       video.pause();
@@ -203,12 +231,12 @@ export default function App() {
     }
     const detEntry = models.find((m) => m.id === detectorId);
     if (!detEntry) {
-      setStatus('Select a detection model (.tflite).');
+      setStatus(`Select a detection model (${MODEL_EXT}).`);
       return;
     }
     const reidEntry = variantInfo.usesReid ? models.find((m) => m.id === reidId) : null;
     if (variantInfo.usesReid && !reidEntry) {
-      setStatus('SOMA-R requires a ReID model (.tflite).');
+      setStatus(`SOMA-R requires a ReID model (${MODEL_EXT}).`);
       return;
     }
 
@@ -217,41 +245,67 @@ export default function App() {
     setStats(null);
 
     let accel: Accelerator = backend;
+    const preset = PRESETS[variantInfo.preset];
+    let workerPipeline: WorkerPipeline | null = null;
+    let localPipeline: SomaPipeline | null = null;
     try {
-      // ---- load models (with wasm fallback when webgpu init fails) --------
-      setStatus(`Loading detection model (${accel}) ...`);
-      const detBytes = await resolveBytes(detEntry);
-      let detLoaded: LoadedModel;
-      try {
-        detLoaded = await loadModel(detBytes, accel, numThreads);
-      } catch (error) {
-        if (accel === 'webgpu') {
-          const msg = error instanceof Error ? error.message : String(error);
-          setStatus(`WebGPU init failed — falling back to WASM: ${msg}`);
-          accel = 'wasm';
-          detLoaded = await loadModel(detBytes, accel, numThreads);
-        } else {
-          throw error;
+      if (WORKER_MODE === 'dedicated') {
+        // ---- dedicated inference worker (default) ------------------------
+        setStatus(`Loading models in the inference worker (${accel}) ...`);
+        workerPipeline = new WorkerPipeline();
+        workerPipelineRef.current = workerPipeline;
+        const ready = await workerPipeline.init({
+          runtime: RUNTIME,
+          accelerator: accel,
+          numThreads,
+          detectorUrl: detEntry.url,
+          reidUrl: variantInfo.usesReid && reidEntry ? reidEntry.url : null,
+          whiten: variantInfo.whiten,
+          preset,
+        });
+        accel = ready.accelerator;
+        if (ready.note !== null) {
+          setStatus(ready.note);
         }
-      }
-      loadedModelsRef.current.push(detLoaded);
-
-      let reidLoaded: LoadedModel | null = null;
-      if (variantInfo.usesReid && reidEntry) {
-        setStatus(`Loading ReID model (${accel}) ...`);
-        const reidBytes = await resolveBytes(reidEntry);
+      } else {
+        // ---- in-thread engines (--web-inference-worker=main) -------------
+        setStatus(`Loading detection model (${accel}) ...`);
+        const detBytes = await resolveBytes(detEntry);
+        let detLoaded: EngineModel;
         try {
-          reidLoaded = await loadModel(reidBytes, accel, numThreads);
+          detLoaded = await loadEngineModel(detBytes, accel, numThreads);
         } catch (error) {
           if (accel === 'webgpu') {
             const msg = error instanceof Error ? error.message : String(error);
-            setStatus(`Retrying the ReID model on WASM: ${msg}`);
-            reidLoaded = await loadModel(reidBytes, 'wasm', numThreads);
+            setStatus(`WebGPU init failed — falling back to WASM: ${msg}`);
+            accel = 'wasm';
+            detLoaded = await loadEngineModel(detBytes, accel, numThreads);
           } else {
             throw error;
           }
         }
-        loadedModelsRef.current.push(reidLoaded);
+        loadedModelsRef.current.push(detLoaded);
+
+        let reidLoaded: EngineModel | null = null;
+        if (variantInfo.usesReid && reidEntry) {
+          setStatus(`Loading ReID model (${accel}) ...`);
+          const reidBytes = await resolveBytes(reidEntry);
+          try {
+            reidLoaded = await loadEngineModel(reidBytes, accel, numThreads);
+          } catch (error) {
+            if (accel === 'webgpu') {
+              const msg = error instanceof Error ? error.message : String(error);
+              setStatus(`Retrying the ReID model on WASM: ${msg}`);
+              reidLoaded = await loadEngineModel(reidBytes, 'wasm', numThreads);
+            } else {
+              throw error;
+            }
+          }
+          loadedModelsRef.current.push(reidLoaded);
+        }
+        const detector = new WebDetector(detLoaded);
+        const reid = reidLoaded ? new WebReidEmbedder(reidLoaded) : null;
+        localPipeline = new SomaPipeline(detector, reid, variantInfo.whiten, makeTrackerConfig(preset, 30));
       }
 
       // ---- open the source ------------------------------------------------
@@ -293,46 +347,56 @@ export default function App() {
       }
 
       // ---- pipeline -------------------------------------------------------
-      const detector = new WebDetector(detLoaded);
-      const reid = reidLoaded ? new WebReidEmbedder(reidLoaded) : null;
-      const preset = PRESETS[variantInfo.preset];
-      const pipeline = new SomaPipeline(
-        detector,
-        reid,
-        variantInfo.whiten,
-        makeTrackerConfig(preset, 30),
-      );
-
       const source: FrameSource = {
         width: frameW,
         height: frameH,
         draw: (c, w, h) => c.drawImage(video, 0, 0, w, h),
         drawCrop: (c, sx, sy, sw, sh, dw, dh) => c.drawImage(video, sx, sy, sw, sh, 0, 0, dw, dh),
       };
+      // full-resolution frame grabber for the worker path
+      const grabCanvas = document.createElement('canvas');
+      grabCanvas.width = frameW;
+      grabCanvas.height = frameH;
+      const grabCtx = grabCanvas.getContext('2d', { willReadFrequently: true });
+      if (!grabCtx) {
+        throw new Error('2D canvas context unavailable');
+      }
 
-      setStatus(`Running — ${variantInfo.label} / ${accel}${accel === 'wasm' && numThreads > 0 ? ` (${numThreads} threads)` : ''}`);
+      setStatus(`Running — ${variantInfo.label} / ${RUNTIME_LABEL} ${accel}${WORKER_MODE === 'dedicated' ? ' / worker' : ''}${accel === 'wasm' && numThreads > 0 ? ` (${numThreads} threads)` : ''}`);
 
       let emaFps = 0;
       let lastT = performance.now();
+      let frameNo = 0;
       const loop = async (): Promise<void> => {
         while (runningRef.current) {
           if (video.paused || video.ended) {
             await new Promise((r) => setTimeout(r, 50));
             continue;
           }
-          const out = await pipeline.process(source);
+          let out;
+          if (workerPipeline !== null) {
+            grabCtx.drawImage(video, 0, 0, frameW, frameH);
+            out = await workerPipeline.process(grabCtx.getImageData(0, 0, frameW, frameH));
+          } else if (localPipeline !== null) {
+            out = await localPipeline.process(source);
+          } else {
+            throw new Error('no pipeline available');
+          }
+          frameNo += 1;
           const now = performance.now();
           const dt = now - lastT;
           lastT = now;
           const fps = 1000 / Math.max(dt, 1);
           emaFps = emaFps === 0 ? fps : 0.9 * emaFps + 0.1 * fps;
-          // adapt the tracker's frame-rate-derived horizons to the achieved
-          // processing rate (max_age etc. are counted in processed frames)
-          const cfg = pipeline.tracker.cfg;
-          cfg.fps = Math.max(1, Math.round(emaFps));
-          cfg.maxAge = cfg.maxAgeSec > 0
-            ? Math.round(cfg.maxAgeSec * cfg.fps)
-            : 2 * cfg.fps;
+          if (localPipeline !== null) {
+            // adapt the tracker's frame-rate-derived horizons to the achieved
+            // processing rate (the worker path adapts inside the worker)
+            const cfg = localPipeline.tracker.cfg;
+            cfg.fps = Math.max(1, Math.round(emaFps));
+            cfg.maxAge = cfg.maxAgeSec > 0
+              ? Math.round(cfg.maxAgeSec * cfg.fps)
+              : 2 * cfg.fps;
+          }
 
           // ---- render -------------------------------------------------
           ctx.drawImage(video, 0, 0, frameW, frameH);
@@ -349,7 +413,7 @@ export default function App() {
             trackMs: out.stats.trackMs,
             nTokens: out.stats.nTokens,
             nTracks: out.stats.nTracks,
-            frame: pipeline.frame,
+            frame: frameNo,
           });
           // yield to the event loop so React/UI stays responsive
           await new Promise((r) => setTimeout(r, 0));
@@ -377,11 +441,19 @@ export default function App() {
       <section className="card controls-card">
         <h1>SOMA Web</h1>
         <p className="subtle">
-          Electron + Vite + TypeScript + React + LiteRT ({webgpuOk ? 'WebGPU/WASM' : 'WASM only'}) —
+          Electron + Vite + TypeScript + React + {RUNTIME_LABEL} ({webgpuOk ? 'WebGPU/WASM' : 'WASM only'}) —
           runs the SOMA / SOMA-R tracker in real time on a webcam or a video file.
         </p>
 
         <div className="control-grid">
+          <label>
+            Runtime
+            <select value={RUNTIME} onChange={(e) => switchRuntime(e.target.value)} disabled={running}>
+              <option value="litert">LiteRT (.tflite)</option>
+              <option value="ort">ONNX Runtime Web (.onnx)</option>
+            </select>
+          </label>
+
           <label>
             Variant (preset)
             <select value={variant} onChange={(e) => setVariant(e.target.value as VariantId)} disabled={running}>
@@ -414,8 +486,8 @@ export default function App() {
           <label>
             Backend
             <select value={backend} onChange={(e) => setBackend(e.target.value as Accelerator)} disabled={running}>
-              <option value="webgpu" disabled={!webgpuOk}>LiteRT WebGPU{webgpuOk ? '' : ' (unavailable)'}</option>
-              <option value="wasm">LiteRT WASM</option>
+              <option value="webgpu" disabled={!webgpuOk}>{RUNTIME_LABEL} WebGPU{webgpuOk ? '' : ' (unavailable)'}</option>
+              <option value="wasm">{RUNTIME_LABEL} WASM</option>
             </select>
           </label>
 
@@ -488,7 +560,7 @@ export default function App() {
         {catalogError && <p className="subtle">Model catalog: {catalogError}</p>}
         {models.length === 0 && !catalogError && (
           <p className="subtle">
-            No .tflite models found. Put them into web/models/ or models/ and run
+            No {MODEL_EXT} models found. Put them into web/models/ or models/ and run
             `pnpm run prepare:assets`.
           </p>
         )}

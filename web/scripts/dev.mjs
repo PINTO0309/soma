@@ -87,7 +87,9 @@ try {
 const { default: electron } = await import('electron');
 const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
-const app = spawn(electron, ['dist-electron/main.js', '--dev'], {
+// forward CLI options (e.g. --runtime=ort) to the electron main process
+const passthroughArgs = process.argv.slice(2);
+const app = spawn(electron, ['dist-electron/main.js', '--dev', ...passthroughArgs], {
   stdio: 'inherit',
   cwd: root,
   env,
