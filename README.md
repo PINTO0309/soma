@@ -285,7 +285,7 @@ web/                  web runtime (Electron + Vite + TypeScript + React + LiteRT
   scripts/          asset staging (models + LiteRT wasm), zero-dependency dev runner
 ```
 
-## [WIP] Testing web runtime kernel efficiency (Electron + LiteRT)
+## Testing web runtime kernel efficiency (Electron + LiteRT.js/onnxruntime-web)
 
 Live SOMA / SOMA-R tracking on a webcam or a video file, fully in-browser inference: LiteRT.js with the **WebGPU** accelerator (or WASM fallback), no python and no server. The tracking core is a line-by-line TypeScript port of `soma/` — same presets (`soma`, `somar-pv`, `somar-os`), same association stack (stage-1 fusion, identity memory, embedding-only revival, ghost coasting, head-mosaic privacy overlay).
 
