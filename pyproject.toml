@@ -1,6 +1,6 @@
 [project]
 name = "soma-tracker"  # "soma" is taken on PyPI; the import package stays `soma`
-version = "1.1.0"
+version = "1.0.0"
 description = "SOMA — Structured Output Matching & Association: online multi-person tracking on the structured output of a multi-task wholebody detector"
 readme = "README.md"
 license = { file = "LICENSE" }
