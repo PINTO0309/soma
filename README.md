@@ -66,15 +66,15 @@ Concretely: SOMA-R's **44%** in the ~5s bin below means 44% of the people who va
 | BoostTrack++ | 28.9% | 26.1% | 32.2% | 28.9% | 30.4% | 4,500 | 2.08% | 5% | 0% | 0% |
 | BoostTrack++-R | 30.7% | 26.3% | 36.0% | 29.3% | 33.2% | 3,426 | 1.58% | 7% | 0% | 0% |
 
-### 640x640 stretch — detector: wb28 — ReID: OSNet-AIN aug v3 (whitened)
+### 640x640 stretch — detector: wb28 — ReID: OSNet-AIN aug v4 (whitened)
 
 | tracker | HOTA | DetA | AssA | MOTA | IDF1 | IDSW | sw/TP | ~1s | ~3s | ~5s |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | SOMA | 29.2% | 28.5% | 30.2% | 31.1% | 31.2% | 7,964 | 3.32% | 8% | 0% | 0% |
-| **SOMA-R** | **36.7%** | 30.6% | **44.4%** | **33.5%** | **44.0%** | 4,938 | 1.87% | **32%** | **26%** | **32%** |
+| **SOMA-R** | **36.7%** | 30.6% | **44.3%** | **33.5%** | **44.1%** | 5,030 | 1.90% | **31%** | **23%** | **35%** |
 | ByteTrack | 26.4% | 27.7% | 25.4% | 31.2% | 28.6% | 7,456 | 3.08% | 6% | 0% | 0% |
 | BoostTrack++ | 28.9% | 26.1% | 32.2% | 28.9% | 30.4% | 4,500 | 2.08% | 5% | 0% | 0% |
-| BoostTrack++-R | 30.7% | 26.2% | 35.8% | 29.1% | 32.8% | 3,638 | 1.68% | 6% | 0% | 0% |
+| BoostTrack++-R | 30.6% | 26.2% | 36.0% | 29.1% | 32.9% | 3,599 | 1.66% | 6% | 0% | 0% |
 
 All rows share the same low-floor (0.10) wb28 detections; within a section every ReID row is fed the SAME features (fairness pairing). External baselines run official code (computed in the research repo via its shims).
 
@@ -85,7 +85,7 @@ uv sync # pinned deps (numpy/opencv/ort-gpu/scipy)
 # models/ : copy the three ONNX files (gitignored) —
 #   yolov9_e_wholebody28_refine_Nx3HxW.onnx   (detector, dynamic res)
 #   personvit_vits16_ain_unified_aug_n.onnx   (SOMA-R ReID, 384-d, raw)
-#   osnet_ain_x1_0_p_unified_aug_n.onnx       (SOMA-R ReID, 512-d, whitened)
+#   osnet_ain_x1_0_p_unified_aug_n.onnx       (SOMA-R ReID v4 cam-branch, 512-d, whitened)
 # data/CrowdTrack : the benchmark split (MOT layout)
 ```
 

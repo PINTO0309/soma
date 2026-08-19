@@ -57,10 +57,13 @@ PRESETS = {
                  "emb_lo": 0.398, "emb_hi": 0.945, "emb_veto": 0.479,
                  "lost_emb_gate_cos": 0.398, "mem_cos": 0.642,
                  "revive_cos": 0.560},
+    # v4 (cam-branch generation, ptrack exp065): whitening kept — the raw
+    # pool is healthy now but whitening still wins the cell A/B; thresholds
+    # re-qmapped on the v4 whitened pool.
     "somar-os": {**_SOMAR_BASE,
-                 "emb_lo": 0.250, "emb_hi": 0.899, "emb_veto": 0.314,
-                 "lost_emb_gate_cos": 0.250, "mem_cos": 0.475,
-                 "revive_cos": 0.384},
+                 "emb_lo": 0.251, "emb_hi": 0.901, "emb_veto": 0.314,
+                 "lost_emb_gate_cos": 0.251, "mem_cos": 0.470,
+                 "revive_cos": 0.383},
 }
 
 _TOKEN_FIELDS = ("anchor", "body_box", "body_score", "box_proxy", "presence",
@@ -155,7 +158,7 @@ def cmd_run(args) -> None:
 BENCH_ROWS = {
     "soma": ("data/cache/l028b_crowdtrack_train", "soma"),
     "somar-pv": ("data/cache/l028pv3rb_crowdtrack_train", "somar-pv"),
-    "somar-os": ("data/cache/l028oaug3Wrb_crowdtrack_train", "somar-os"),
+    "somar-os": ("data/cache/l028oaug4Wrb_crowdtrack_train", "somar-os"),
 }
 
 
