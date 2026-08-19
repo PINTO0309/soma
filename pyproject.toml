@@ -1,30 +1,63 @@
 [project]
-name = "soma"
-version = "1.0.0"
+name = "soma-tracker"  # "soma" is taken on PyPI; the import package stays `soma`
+version = "1.1.0"
 description = "SOMA — Structured Output Matching & Association: online multi-person tracking on the structured output of a multi-task wholebody detector"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.12"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+    "Typing :: Typed",
+]
+keywords = ["multi-object-tracking", "mot", "tracking", "reid", "onnx"]
 # NOTE: pinned exactly, mirroring the ptrack research repo the tracker was
-# validated in. The tracking core itself needs numpy only; opencv is video
-# I/O + preprocessing, onnxruntime-gpu runs the ONNX models, scipy is the
-# evaluator's linear_sum_assignment (the tracker falls back to a built-in
-# numpy Hungarian when scipy is absent).
+# validated in. The tracking CORE (SomaTracker + Detection adapter) needs
+# numpy only; install the extras for the rest:
+#   perception — opencv (video I/O + preprocessing) + onnxruntime-gpu
+#                (wholebody detector / ReID inference); SomaVideoTracker
+#                and soma-eval cache/video need this
+#   eval       — scipy (the evaluator's linear_sum_assignment; the tracker
+#                itself falls back to a built-in numpy Hungarian)
+#   full       — perception + eval (the classic all-in setup)
 dependencies = [
     "numpy==2.4.6",
+]
+
+[project.optional-dependencies]
+perception = [
+    "opencv-python==4.13.0.92",
+    "onnxruntime-gpu==1.26.0",
+]
+eval = [
+    "scipy==1.16.2",
+]
+full = [
     "opencv-python==4.13.0.92",
     "onnxruntime-gpu==1.26.0",
     "scipy==1.16.2",
 ]
-
-[project.optional-dependencies]
 tensorrt = [
     "tensorrt-cu12==11.1.0.106",
 ]
 dev = [
+    "opencv-python==4.13.0.92",
+    "onnxruntime-gpu==1.26.0",
+    "scipy==1.16.2",
     "pytest==8.4.2",
     "ruff==0.15.22",
 ]
+
+[project.urls]
+Homepage = "https://github.com/PINTO0309/soma"
+Repository = "https://github.com/PINTO0309/soma"
+Issues = "https://github.com/PINTO0309/soma/issues"
 
 [project.scripts]
 soma-eval = "soma.cli:main"

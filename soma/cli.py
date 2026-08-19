@@ -17,54 +17,15 @@ import time
 
 import numpy as np
 
-from .mot import find_sequences, frame_path, load_gt
+from .mot import SeqInfo, find_sequences, frame_path, load_gt
 from .perception import Perception
+from .presets import PRESETS, VARIANTS
 from .tokens import AnatomicalToken
 from .tracker import SomaTracker, TrackerConfig
 
 W28 = "models/yolov9_e_wholebody28_refine_Nx3HxW.onnx"
 TABLE_JSON = "results/eval_table.json"
 CROWDTRACK = "data/CrowdTrack/train"
-
-# ReID variants of the wb28x640 CrowdTrack benchmark. PersonViT v3 runs RAW
-# (its raw cosine geometry is already spread — internal domain
-# normalization); OSNet-AIN aug v3 needs causal whitening (compressed cone).
-VARIANTS = {
-    "det": {"reid": None, "whiten": 0.0},
-    "pv": {"reid": "models/personvit_vits16_ain_unified_aug_n.onnx", "whiten": 0.0},
-    "os": {"reid": "models/osnet_ain_x1_0_p_unified_aug_n.onnx", "whiten": 0.98},
-}
-
-# SOMA: geometry/parts/orientation channels only (no ReID).
-# SOMA-R: appearance-dominant stage-1 + memory/revival/ghost stack; the
-# embedding thresholds are quantile-calibrated per ReID model (ptrack exp050
-# procedure), everything else is shared.
-_SOMAR_BASE = {
-    "det_thresh": 0.35, "init_thresh": 0.55, "sim_gate": 0.30,
-    "w_emb": 4.0, "w_oks": 0.0, "amodal_alpha": 4.0, "dlo_beta": 0.65,
-    "token_floor": 0.12, "w_dir": 0.0, "dir_veto": 0.0, "size_prior_thr": 0.5,
-    "emb_center_lambda": 0.25, "mem_ttl_sec": 12.0, "mem_margin": 0.10,
-    "lost_vel_decay": 0.85, "gate_grow": 0.6, "max_age_sec": 6.0,
-    "lost_emb_gate_sec": 1.2, "emit_kf": True, "part_gate": 1.01,
-    "emb_update_crowd_max": 0.60,
-    "ghost_emit_max_s": 0.10, "ghost_crowd_max": 0.30,
-}
-PRESETS = {
-    "soma": {"det_thresh": 0.45, "init_thresh": 0.55, "sim_gate": 0.20,
-             "amodal_alpha": 4.0, "dlo_beta": 0.65, "token_floor": 0.25,
-             "w_dir": 0.5, "dir_veto": 0.15, "size_prior_thr": 0.5},
-    "somar-pv": {**_SOMAR_BASE,
-                 "emb_lo": 0.398, "emb_hi": 0.945, "emb_veto": 0.479,
-                 "lost_emb_gate_cos": 0.398, "mem_cos": 0.642,
-                 "revive_cos": 0.560},
-    # v4 (cam-branch generation, ptrack exp065): whitening kept — the raw
-    # pool is healthy now but whitening still wins the cell A/B; thresholds
-    # re-qmapped on the v4 whitened pool.
-    "somar-os": {**_SOMAR_BASE,
-                 "emb_lo": 0.251, "emb_hi": 0.901, "emb_veto": 0.314,
-                 "lost_emb_gate_cos": 0.251, "mem_cos": 0.470,
-                 "revive_cos": 0.383},
-}
 
 _TOKEN_FIELDS = ("anchor", "body_box", "body_score", "box_proxy", "presence",
                  "points", "generation", "gender", "embedding", "head_box",
@@ -92,7 +53,8 @@ def _tok_from_dict(d: dict) -> AnatomicalToken:
     )
 
 
-def _run_sequence(seq, cache_dir: str, cfg_kw: dict) -> tuple[list[tuple], dict]:
+def _run_sequence(seq: SeqInfo, cache_dir: str,
+                  cfg_kw: dict) -> tuple[list[tuple], dict]:
     data = np.load(os.path.join(cache_dir, f"{seq.name}.npz"), allow_pickle=True)
     frames = data["frames"]
     sx, sy = data["scale"]
@@ -113,7 +75,7 @@ def _run_sequence(seq, cache_dir: str, cfg_kw: dict) -> tuple[list[tuple], dict]
 
 # ---- subcommands -----------------------------------------------------------
 
-def cmd_cache(args) -> None:
+def cmd_cache(args: argparse.Namespace) -> None:
     import cv2
     var = VARIANTS[args.variant]
     per = Perception(model_path=args.model, mode="stretch",
@@ -141,7 +103,7 @@ def cmd_cache(args) -> None:
               flush=True)
 
 
-def cmd_run(args) -> None:
+def cmd_run(args: argparse.Namespace) -> None:
     os.makedirs(args.out, exist_ok=True)
     cfg = dict(PRESETS[args.preset])
     for seq in find_sequences(args.split):
@@ -185,7 +147,7 @@ def _eval_cell(cache: str, preset: str) -> dict:
                          for n, _, _ in RECOVERY_BUCKETS}}
 
 
-def cmd_bench(args) -> None:
+def cmd_bench(args: argparse.Namespace) -> None:
     with open(TABLE_JSON) as f:
         table = json.load(f)
     for row in args.rows.split(","):
@@ -202,7 +164,7 @@ def cmd_bench(args) -> None:
     print("wrote", TABLE_JSON)
 
 
-def cmd_table(args) -> None:
+def cmd_table(args: argparse.Namespace) -> None:
     with open(TABLE_JSON) as f:
         t = json.load(f)
     cells = t["cells"]
@@ -232,7 +194,8 @@ def cmd_table(args) -> None:
 
 # ---- live video (operation check) ------------------------------------------
 
-def _frost(img, boxes, pad=0.1, cells=9) -> None:
+def _frost(img: np.ndarray, boxes: np.ndarray,
+           pad: float = 0.1, cells: int = 9) -> None:
     """Privacy: frosted-glass ellipse over each (padded) head box. The mosaic
     grid is a FIXED cells x cells regardless of head size, so heads stay
     unidentifiable at any resolution."""
@@ -265,7 +228,7 @@ def _id_color(tid: int) -> tuple:
     return int(c[0]), int(c[1]), int(c[2])
 
 
-def cmd_video(args) -> None:
+def cmd_video(args: argparse.Namespace) -> None:
     import cv2
     var = VARIANTS[args.variant]
     label = {"pv": "SOMA-R / PersonViT ViT-S/16 aug v3 (raw)",

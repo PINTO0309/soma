@@ -8,6 +8,7 @@ masks. This keeps assembly O(#keypoints x #bodies) with no mask resize.
 """
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -180,7 +181,7 @@ def assemble(
     labels, boxes, scores = det.labels, det.boxes, det.scores
     centers = det.centers()
 
-    def kept_rows(class_ids, thr) -> np.ndarray:
+    def kept_rows(class_ids: Iterable[int], thr: float) -> np.ndarray:
         m = np.isin(labels, np.asarray(list(class_ids))) & (scores >= thr)
         return np.where(m)[0]
 
@@ -198,7 +199,7 @@ def assemble(
     head_rows = nms_rows(C.HEAD, score_threshold)
 
     # ---- attribute lookup tables ---------------------------------------
-    def attr_table(attr_ids: dict[int, int]):
+    def attr_table(attr_ids: dict[int, int]) -> tuple[np.ndarray, np.ndarray]:
         rows = kept_rows(attr_ids.keys(), attr_score_threshold)
         vals = np.array([attr_ids[int(labels[r])] for r in rows], dtype=np.int64)
         return rows, vals
@@ -349,7 +350,8 @@ def assemble(
         c10 = bb[:, [2, 1]]
         orients = ((c00, c11), (c11, c00), (c01, c10), (c10, c01))
 
-        def nearest_all(cid: int, want_side: int | None, corners: np.ndarray):
+        def nearest_all(cid: int, want_side: int | None, corners: np.ndarray
+                        ) -> tuple[np.ndarray, np.ndarray] | None:
             """Per-bone (dist, kp_gi) of nearest side-compatible kp of class cid."""
             gis, pos, sides = kp_pos_by_class[cid]
             if not len(gis):

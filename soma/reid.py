@@ -6,11 +6,11 @@ chunk is padded to one static [1,3,H,W] engine shape (parity vs CUDA >=.998,
 ("half" norm) for the PersonViT / OSNet-AIN aug models."""
 from __future__ import annotations
 
-import cv2
 import numpy as np
-import onnxruntime as ort
 
 from .detector import DEFAULT_TENSORRT_PRECISION, build_providers
+
+# cv2 / onnxruntime are imported lazily (see soma/detector.py).
 
 _MEAN = np.array([0.485, 0.456, 0.406], np.float32)
 _STD = np.array([0.229, 0.224, 0.225], np.float32)
@@ -26,6 +26,8 @@ class ReIDEmbedder:
     def __init__(self, model_path: str, execution_provider: str = "cuda",
                  tensorrt_precision: str = DEFAULT_TENSORRT_PRECISION,
                  batch_max: int = 1, norm: str = "half"):
+        import onnxruntime as ort
+
         self.norm_mean, self.norm_std = _NORMS[norm]
         # NOTE: default is cuda, not tensorrt — the pre-reset project hit a
         # TRT EP bug on a dynamic-batch ViT embedder (NaN/wrong rows). Enable
@@ -47,6 +49,8 @@ class ReIDEmbedder:
     def __call__(self, img_bgr: np.ndarray, boxes: np.ndarray) -> np.ndarray:
         """boxes: (N,4) x1y1x2y2 frame coords -> (N,D) L2-normalized fp32.
         Boxes are clipped to the frame; degenerate crops get zero vectors."""
+        import cv2
+
         H, W = img_bgr.shape[:2]
         n = len(boxes)
         out = np.zeros((n, self.out_dim), dtype=np.float32)

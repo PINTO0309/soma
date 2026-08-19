@@ -7,10 +7,16 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
-import cv2
 import numpy as np
-import onnxruntime as ort
+
+if TYPE_CHECKING:
+    import onnxruntime as ort
+
+# cv2 / onnxruntime are imported lazily inside the functions that need them:
+# `import soma` (and the numpy-only tracking core) must work without the
+# `perception` extra installed.
 
 INPUT_SIZE = 640
 
@@ -26,8 +32,10 @@ DEFAULT_TENSORRT_PRECISION = "fp16"
 
 def build_providers(execution_provider: str, model_path: str,
                     tensorrt_precision: str = DEFAULT_TENSORRT_PRECISION,
-                    ) -> tuple["ort.SessionOptions", list]:
+                    ) -> tuple["ort.SessionOptions", list[Any]]:
     """SessionOptions + provider list for cpu / cuda / tensorrt."""
+    import onnxruntime as ort
+
     if execution_provider not in EXECUTION_PROVIDERS:
         raise ValueError(f"unsupported execution provider: {execution_provider}; "
                          f"expected one of: {', '.join(EXECUTION_PROVIDERS)}")
@@ -122,11 +130,13 @@ class Detections:
 
     def mask_prob_at(self, row: int, points_frame: np.ndarray) -> np.ndarray:
         """Bilinear-sampled mask probability of `row` at (M,2) frame points."""
+        assert self.mask_probs is not None    # only called on mask-capable models
         grid = self.to_mask_grid(points_frame)
         return _bilinear(self.mask_probs[row], grid)
 
     def mask_probs_matrix(self, rows: np.ndarray, points_frame: np.ndarray) -> np.ndarray:
         """(len(rows), M) mask probabilities at shared frame points."""
+        assert self.mask_probs is not None    # only called on mask-capable models
         grid = self.to_mask_grid(points_frame)
         return np.stack([_bilinear(self.mask_probs[r], grid) for r in rows]) \
             if len(rows) else np.zeros((0, len(points_frame)), np.float32)
@@ -153,6 +163,8 @@ class Detector:
                  input_size: tuple[int, int] | None = None,
                  execution_provider: str = DEFAULT_EXECUTION_PROVIDER,
                  tensorrt_precision: str = DEFAULT_TENSORRT_PRECISION):
+        import onnxruntime as ort
+
         if mode not in ("stretch", "letterbox"):
             raise ValueError(f"unknown preprocess mode: {mode}")
         self.mode = mode
@@ -167,6 +179,8 @@ class Detector:
                                                                           INPUT_SIZE)
 
     def __call__(self, img_bgr: np.ndarray) -> Detections:
+        import cv2
+
         h, w = img_bgr.shape[:2]
         in_w, in_h = self.in_w, self.in_h
         if self.mode == "stretch":
