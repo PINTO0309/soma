@@ -94,7 +94,7 @@ Both SOMA-R ReID embedders (PersonViT / OSNet-AIN) are distributed in [PINTO_mod
 | embedder (`--variant`) | fine-tune | backbone | params | GFLOPs<br>@256x128 | emb |
 |---|---|---|---:|---:|---:|
 | `personvit_vits16_ain_unified_aug_n` | [S-ain-aug](https://github.com/PINTO0309/PersonViT/tree/uv#s-ain-aug----vit-s16--token-in---220m) | ViT-S/16 + token-IN | 22.0M | 2.94 | 384 |
-| `osnet_ain_x1_0_p_unified_aug_n` | [P-ain-aug](https://github.com/PINTO0309/PersonViT/tree/uv#p-ain-aug---osnet-ain-x10---22m) | OSNet-AIN x1.0 | 2.2M | 0.98 | 512 |
+| `osnet_ain_x1_0_p_unified_aug_n` | [P-ain-aug](https://github.com/PINTO0309/PersonViT/tree/uv#p-ain-aug---osnet-ain-x10---22m) | OSNet-AIN x1.0 | 2.7M | 0.98 | 512 |
 
 Standalone ReID accuracy of the two fine-tuned embedders, quoted from the [PersonViT](https://github.com/PINTO0309/PersonViT/tree/uv) repo:
 
