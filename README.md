@@ -2,7 +2,7 @@
 
 **S**tructured **O**utput **M**atching &amp; **A**ssociation: online multi-person tracking built on the structured output of a multi-task wholebody detector, one whole-frame pass per frame (plus per-crop ReID embeddings in SOMA-R) — no tiling, no offline post-processing.
 
-![GitHub](https://img.shields.io/github/license/PINTO0309/soma?color=2BAF2B) [![DOI](https://zenodo.org/badge/1337142718.svg)](https://doi.org/10.5281/zenodo.21986816) [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/PINTO0309/soma)
+[![PyPI](https://img.shields.io/pypi/v/soma-tracker?color=2BAF2B)](https://pypi.org/project/soma-tracker/) ![GitHub](https://img.shields.io/github/license/PINTO0309/soma?color=2BAF2B) [![DOI](https://zenodo.org/badge/1337142718.svg)](https://doi.org/10.5281/zenodo.21986816) [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/PINTO0309/soma)
 
 A person is not "one box": it is an **anatomical token** — body box, body parts (head/shoulders/elbows/hands/knees/feet), head-orientation ring and person attributes — assembled from one [YOLOv9-E Wholebody28-Refine](https://github.com/PINTO0309/PINTO_model_zoo/tree/main/468_YOLOv9-Wholebody28-Refine) forward pass. Association fuses cheap identity channels (box IoU, part OKS, orientation continuity, attribute vetoes) with anatomical amodal box synthesis and an online scene-geometry size prior. **SOMA-R** adds an external ReID embedding as the dominant stage-1 channel plus a post-death identity memory, an embedding-only revival stage, appearance-locked track extension and short KF ghost coasting — the long-gap same-id recovery stack.
 
