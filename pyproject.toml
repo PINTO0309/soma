@@ -69,5 +69,10 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["soma"]
 
+# keep the sdist to the python package — without this it swallows the whole
+# repo (web runtime, caches, results: ~260MB)
+[tool.hatch.build.targets.sdist]
+only-include = ["soma", "README.md", "LICENSE"]
+
 [tool.ruff]
 line-length = 100

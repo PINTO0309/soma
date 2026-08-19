@@ -196,6 +196,10 @@ pip install "soma-tracker[perception] @ git+https://github.com/PINTO0309/soma"
 or
 
 uv add "soma-tracker[perception] @ git+https://github.com/PINTO0309/soma"
+
+or
+
+uv add soma-tracker[perception]
 ```
 
 **Level A — frames in, tracks out** (the same model + preset + whitening wiring as `soma-eval video`):
