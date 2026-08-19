@@ -191,7 +191,11 @@ For comparison under the same criteria: the official pre-trained OSNet-AIN weigh
 SOMA is importable as a package — distribution name `soma-tracker`, import name `soma`. The tracking core depends on numpy only; the full frames-in/tracks-out pipeline needs the `perception` extra (opencv + onnxruntime-gpu).
 
 ```bash
-pip install "soma-tracker[perception] @ git+https://github.com/PINTO0309/soma" # or: uv add "soma-tracker[perception] @ git+..."
+pip install "soma-tracker[perception] @ git+https://github.com/PINTO0309/soma"
+
+or
+
+uv add "soma-tracker[perception] @ git+https://github.com/PINTO0309/soma"
 ```
 
 **Level A — frames in, tracks out** (the same model + preset + whitening wiring as `soma-eval video`):
@@ -200,10 +204,11 @@ pip install "soma-tracker[perception] @ git+https://github.com/PINTO0309/soma" #
 import cv2
 from soma import SomaVideoTracker, models
 
-models.download("yolov9_e_wholebody28_refine_Nx3HxW.onnx")   # -> models/ (skips existing)
+# -> models/ (skips existing)
+models.download("yolov9_e_wholebody28_refine_Nx3HxW.onnx")
 models.download("personvit_vits16_ain_unified_aug_n.onnx")
-
-vt = SomaVideoTracker.from_variant("pv")  # det / pv / os; backend: tensorrt (default) / cuda / cpu
+# det / pv / os; backend: tensorrt (default) / cuda / cpu
+vt = SomaVideoTracker.from_variant("pv")
 cap = cv2.VideoCapture("input.mp4")
 while True:
     ok, frame = cap.read()
@@ -211,7 +216,8 @@ while True:
         break
     for t in vt.update(frame):
         print(t.tid, t.box, t.score, t.ghost)
-    heads = vt.head_boxes()               # head boxes of this frame (privacy masking helper)
+    # head boxes of this frame (privacy masking helper)
+    heads = vt.head_boxes()
 ```
 
 **Level B — bring your own detector/ReID** (numpy-only; no opencv/onnxruntime import):
@@ -220,7 +226,8 @@ while True:
 from soma import Detection, SomaTracker, tracker_config
 
 trk = SomaTracker(tracker_config("somar-pv", fps=25), record_rows=False)
-for frame_dets in stream:                 # your detector (+ optional ReID embeddings)
+# your detector (+ optional ReID embeddings)
+for frame_dets in stream:
     tracks = trk.update(
       [
         Detection(
@@ -294,8 +301,10 @@ soma-eval cache data/CrowdTrack/train \
 --variant os  \
 --out data/cache/l028oaug3Wrb_crowdtrack_train
 
-soma-eval bench --refresh # recompute the SOMA rows
-soma-eval table           # render the table above
+# recompute the SOMA rows
+soma-eval bench --refresh
+# render the table above
+soma-eval table
 
 # operation check: live tracking on any video (head mosaic included)
 soma-eval video \
