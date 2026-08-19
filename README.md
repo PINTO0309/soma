@@ -191,6 +191,10 @@ For comparison under the same criteria: the official pre-trained OSNet-AIN weigh
 SOMA is importable as a package — distribution name `soma-tracker`, import name `soma`. The tracking core depends on numpy only; the full frames-in/tracks-out pipeline needs the `perception` extra (opencv + onnxruntime-gpu).
 
 ```bash
+pip install "soma-tracker[perception]"
+
+or
+
 pip install "soma-tracker[perception] @ git+https://github.com/PINTO0309/soma"
 
 or
@@ -199,7 +203,7 @@ uv add "soma-tracker[perception] @ git+https://github.com/PINTO0309/soma"
 
 or
 
-uv add soma-tracker[perception]
+uv add "soma-tracker[perception]"
 ```
 
 **Level A — frames in, tracks out** (the same model + preset + whitening wiring as `soma-eval video`):
