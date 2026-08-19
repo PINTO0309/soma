@@ -17,7 +17,7 @@ import time
 
 import numpy as np
 
-from .mot import find_sequences, frame_path, load_gt
+from .mot import SeqInfo, find_sequences, frame_path, load_gt
 from .perception import Perception
 from .presets import PRESETS, VARIANTS
 from .tokens import AnatomicalToken
@@ -53,7 +53,8 @@ def _tok_from_dict(d: dict) -> AnatomicalToken:
     )
 
 
-def _run_sequence(seq, cache_dir: str, cfg_kw: dict) -> tuple[list[tuple], dict]:
+def _run_sequence(seq: SeqInfo, cache_dir: str,
+                  cfg_kw: dict) -> tuple[list[tuple], dict]:
     data = np.load(os.path.join(cache_dir, f"{seq.name}.npz"), allow_pickle=True)
     frames = data["frames"]
     sx, sy = data["scale"]
@@ -74,7 +75,7 @@ def _run_sequence(seq, cache_dir: str, cfg_kw: dict) -> tuple[list[tuple], dict]
 
 # ---- subcommands -----------------------------------------------------------
 
-def cmd_cache(args) -> None:
+def cmd_cache(args: argparse.Namespace) -> None:
     import cv2
     var = VARIANTS[args.variant]
     per = Perception(model_path=args.model, mode="stretch",
@@ -102,7 +103,7 @@ def cmd_cache(args) -> None:
               flush=True)
 
 
-def cmd_run(args) -> None:
+def cmd_run(args: argparse.Namespace) -> None:
     os.makedirs(args.out, exist_ok=True)
     cfg = dict(PRESETS[args.preset])
     for seq in find_sequences(args.split):
@@ -146,7 +147,7 @@ def _eval_cell(cache: str, preset: str) -> dict:
                          for n, _, _ in RECOVERY_BUCKETS}}
 
 
-def cmd_bench(args) -> None:
+def cmd_bench(args: argparse.Namespace) -> None:
     with open(TABLE_JSON) as f:
         table = json.load(f)
     for row in args.rows.split(","):
@@ -163,7 +164,7 @@ def cmd_bench(args) -> None:
     print("wrote", TABLE_JSON)
 
 
-def cmd_table(args) -> None:
+def cmd_table(args: argparse.Namespace) -> None:
     with open(TABLE_JSON) as f:
         t = json.load(f)
     cells = t["cells"]
@@ -193,7 +194,8 @@ def cmd_table(args) -> None:
 
 # ---- live video (operation check) ------------------------------------------
 
-def _frost(img, boxes, pad=0.1, cells=9) -> None:
+def _frost(img: np.ndarray, boxes: np.ndarray,
+           pad: float = 0.1, cells: int = 9) -> None:
     """Privacy: frosted-glass ellipse over each (padded) head box. The mosaic
     grid is a FIXED cells x cells regardless of head size, so heads stay
     unidentifiable at any resolution."""
@@ -226,7 +228,7 @@ def _id_color(tid: int) -> tuple:
     return int(c[0]), int(c[1]), int(c[2])
 
 
-def cmd_video(args) -> None:
+def cmd_video(args: argparse.Namespace) -> None:
     import cv2
     var = VARIANTS[args.variant]
     label = {"pv": "SOMA-R / PersonViT ViT-S/16 aug v3 (raw)",

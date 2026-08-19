@@ -7,8 +7,12 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
+
+if TYPE_CHECKING:
+    import onnxruntime as ort
 
 # cv2 / onnxruntime are imported lazily inside the functions that need them:
 # `import soma` (and the numpy-only tracking core) must work without the
@@ -28,7 +32,7 @@ DEFAULT_TENSORRT_PRECISION = "fp16"
 
 def build_providers(execution_provider: str, model_path: str,
                     tensorrt_precision: str = DEFAULT_TENSORRT_PRECISION,
-                    ):
+                    ) -> tuple["ort.SessionOptions", list[Any]]:
     """SessionOptions + provider list for cpu / cuda / tensorrt."""
     import onnxruntime as ort
 
@@ -126,11 +130,13 @@ class Detections:
 
     def mask_prob_at(self, row: int, points_frame: np.ndarray) -> np.ndarray:
         """Bilinear-sampled mask probability of `row` at (M,2) frame points."""
+        assert self.mask_probs is not None    # only called on mask-capable models
         grid = self.to_mask_grid(points_frame)
         return _bilinear(self.mask_probs[row], grid)
 
     def mask_probs_matrix(self, rows: np.ndarray, points_frame: np.ndarray) -> np.ndarray:
         """(len(rows), M) mask probabilities at shared frame points."""
+        assert self.mask_probs is not None    # only called on mask-capable models
         grid = self.to_mask_grid(points_frame)
         return np.stack([_bilinear(self.mask_probs[r], grid) for r in rows]) \
             if len(rows) else np.zeros((0, len(points_frame)), np.float32)

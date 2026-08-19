@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -45,7 +46,7 @@ def download(name: str, dest_dir: "str | os.PathLike" = DEFAULT_DIR,
     if dest.exists() and not overwrite:
         return dest
     dest.parent.mkdir(parents=True, exist_ok=True)
-    url = RELEASE_DOWNLOAD_BASE + urllib.request.quote(name)
+    url = RELEASE_DOWNLOAD_BASE + urllib.parse.quote(name)
     fd, tmp = tempfile.mkstemp(prefix=f".{name}.", suffix=".part",
                                dir=dest.parent)
     os.close(fd)

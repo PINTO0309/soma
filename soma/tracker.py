@@ -157,6 +157,7 @@ class Track:
                full: bool = True) -> None:
         pts = _abs_points(tok)
         if full:
+            assert tok.body_box is not None   # full tokens always carry a body box
             self.kf.update(tok.body_box)
             self.last_box = tok.body_box.copy()
             self.score = tok.body_score
@@ -170,7 +171,7 @@ class Track:
                 delta = np.nanmedian(pts[common] - pred[common], axis=0)
                 if np.isfinite(delta).all():
                     self.kf.shift(float(delta[0]), float(delta[1]))
-        crowding = getattr(tok, "crowding", 0.0)
+        crowding = tok.crowding
         if full:
             self.last_crowding = crowding
         if tok.embedding is not None and crowding <= cfg.emb_update_crowd_max:
@@ -251,7 +252,8 @@ class SomaTracker:
         self._geom_next_fit = 100
 
     # ---- online scene-geometry size prior ----------------------------------
-    def _geom_update(self, tokens, matched_tokens) -> None:
+    def _geom_update(self, tokens: list[AnatomicalToken],
+                     matched_tokens: set[int]) -> None:
         for di in matched_tokens:
             tok = tokens[di]
             if tok.body_box is not None and tok.body_score >= 0.5:
@@ -293,7 +295,9 @@ class SomaTracker:
         return float(np.exp(-d2 / (2 * s2)).mean())
 
     # ---- stage-1 similarity (vectorized) ------------------------------------
-    def _similarity_matrix(self, tokens, full_idx, pred_boxes) -> np.ndarray:
+    def _similarity_matrix(self, tokens: list[AnatomicalToken],
+                           full_idx: list[int],
+                           pred_boxes: list[np.ndarray]) -> np.ndarray:
         cfg = self.cfg
         T, D = len(self.tracks), len(full_idx)
         pb = np.stack(pred_boxes)                                   # (T,4)
@@ -583,9 +587,8 @@ class SomaTracker:
                 live_of = {t.tid: t for t in self.tracks}
                 birth_geo = []
                 for di in birth_dis:
-                    tb0 = (tokens[di].body_box
-                           if tokens[di].body_box is not None
-                           else tokens[di].box_proxy)
+                    bb = tokens[di].body_box
+                    tb0 = bb if bb is not None else tokens[di].box_proxy
                     birth_geo.append((tb0, _center(tb0)))
                 for mi, e in enumerate(self._memory):
                     gap_f = frame_id - e["last_frame"]
@@ -727,6 +730,7 @@ class SomaTracker:
         the OCCLUDER (max-overlap live track at death): the vanished person
         tends to re-emerge near the occluder's CURRENT position."""
         b = tr.last_box
+        assert b is not None              # set by the first full absorb
         c = _center(b)
         occ_tid, occ_off, best = -1, None, 0.15
         for o in self.tracks:

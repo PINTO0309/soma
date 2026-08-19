@@ -28,6 +28,7 @@ extra: opencv + onnxruntime)::
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
@@ -99,8 +100,8 @@ class SomaVideoTracker:
         mode: str = "stretch",
         input_size: tuple[int, int] = (640, 640),
         body_score_floor: float = 0.10,
-        **config_overrides,
-    ):
+        **config_overrides: Any,
+    ) -> None:
         from .perception import Perception  # perception extra
 
         self.perception = Perception(
@@ -121,7 +122,7 @@ class SomaVideoTracker:
     @classmethod
     def from_variant(cls, variant: str = "pv", fps: int = 30,
                      detector: str = "models/yolov9_e_wholebody28_refine_Nx3HxW.onnx",
-                     backend: str = "tensorrt", **kwargs) -> "SomaVideoTracker":
+                     backend: str = "tensorrt", **kwargs: Any) -> "SomaVideoTracker":
         """Construct from a shipped variant (det / pv / os) — the same
         model + preset + whitening wiring as ``soma-eval video``."""
         if variant not in VARIANTS:

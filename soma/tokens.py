@@ -42,6 +42,7 @@ class AnatomicalToken:
     head_box: np.ndarray | None = None    # (4,) frame coords (amodal synthesis input)
     head_dir: np.ndarray | None = None    # (2,) unit (cos, sin) soft head orientation
     head_dir_conf: float = 0.0            # circular resultant length in [0,1]
+    crowding: float = 0.0                 # max IoU with another body this frame
 
 
 def _group_extent(person: Person) -> np.ndarray | None:

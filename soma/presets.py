@@ -7,18 +7,27 @@ procedure), everything else is shared.
 """
 from __future__ import annotations
 
+from typing import Any, TypedDict
+
 from .tracker import TrackerConfig
+
+
+class Variant(TypedDict):
+    """ReID wiring of one shipped variant (see VARIANTS)."""
+
+    reid: str | None    # ONNX path relative to the repo root; None = no ReID
+    whiten: float       # causal whitening EMA keep (0 disables)
 
 # ReID variants of the wb28x640 CrowdTrack benchmark. PersonViT v3 runs RAW
 # (its raw cosine geometry is already spread — internal domain
 # normalization); OSNet-AIN aug v3 needs causal whitening (compressed cone).
-VARIANTS = {
+VARIANTS: dict[str, Variant] = {
     "det": {"reid": None, "whiten": 0.0},
     "pv": {"reid": "models/personvit_vits16_ain_unified_aug_n.onnx", "whiten": 0.0},
     "os": {"reid": "models/osnet_ain_x1_0_p_unified_aug_n.onnx", "whiten": 0.98},
 }
 
-_SOMAR_BASE = {
+_SOMAR_BASE: dict[str, Any] = {
     "det_thresh": 0.35, "init_thresh": 0.55, "sim_gate": 0.30,
     "w_emb": 4.0, "w_oks": 0.0, "amodal_alpha": 4.0, "dlo_beta": 0.65,
     "token_floor": 0.12, "w_dir": 0.0, "dir_veto": 0.0, "size_prior_thr": 0.5,
@@ -28,7 +37,7 @@ _SOMAR_BASE = {
     "emb_update_crowd_max": 0.60,
     "ghost_emit_max_s": 0.10, "ghost_crowd_max": 0.30,
 }
-PRESETS = {
+PRESETS: dict[str, dict[str, Any]] = {
     "soma": {"det_thresh": 0.45, "init_thresh": 0.55, "sim_gate": 0.20,
              "amodal_alpha": 4.0, "dlo_beta": 0.65, "token_floor": 0.25,
              "w_dir": 0.5, "dir_veto": 0.15, "size_prior_thr": 0.5},
@@ -47,7 +56,7 @@ PRESETS = {
 
 
 def tracker_config(preset: str = "somar-pv", fps: int = 30,
-                   **overrides) -> TrackerConfig:
+                   **overrides: Any) -> TrackerConfig:
     """Build a ready-to-run TrackerConfig from a shipped preset.
 
     Resolves the frame-rate-derived horizons (``max_age`` from

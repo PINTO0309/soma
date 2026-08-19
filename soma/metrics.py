@@ -8,6 +8,7 @@ Requires scipy (dev dependency) for linear_sum_assignment.
 from __future__ import annotations
 
 from collections import defaultdict
+from typing import Literal, overload
 
 import numpy as np
 from scipy.optimize import linear_sum_assignment
@@ -15,9 +16,25 @@ from scipy.optimize import linear_sum_assignment
 from .mot import iou_matrix
 
 
-def evaluate_sequence(gt_frames: dict[int, dict], n_gt_boxes: int,
-                      results: list[tuple], iou_thr: float = 0.5,
-                      return_matches: bool = False):
+@overload
+def evaluate_sequence(
+    gt_frames: dict[int, dict], n_gt_boxes: int,
+    results: list[tuple], iou_thr: float = ...,
+    return_matches: Literal[False] = ...,
+) -> dict[str, float]: ...
+@overload
+def evaluate_sequence(
+    gt_frames: dict[int, dict], n_gt_boxes: int,
+    results: list[tuple], iou_thr: float = ...,
+    *, return_matches: Literal[True],
+) -> tuple[dict[str, float], dict[int, dict[int, int]]]: ...
+
+
+def evaluate_sequence(
+    gt_frames: dict[int, dict], n_gt_boxes: int,
+    results: list[tuple], iou_thr: float = 0.5,
+    return_matches: bool = False,
+) -> "dict[str, float] | tuple[dict[str, float], dict[int, dict[int, int]]]":
     """return_matches=True -> (metrics, {fid: {gt_id: pred_id}}) for the
     gap-recovery evaluation (same persistent matching as the CLEAR pass)."""
     preds: dict[int, dict] = defaultdict(lambda: {"ids": [], "boxes": []})
@@ -193,11 +210,11 @@ def hota_accumulate(gt_frames: dict[int, dict], results: list[tuple]) -> dict:
     n_a = len(HOTA_ALPHAS)
     tp = np.zeros(n_a)
     sum_ass = np.zeros(n_a)
-    for (g, p), sims in pair_sims.items():
+    for (gk, pk), sims in pair_sims.items():
         s = np.sort(np.asarray(sims))
         c = len(s) - np.searchsorted(s, HOTA_ALPHAS)      # matches per alpha
         tp += c
-        denom = gt_cnt[g] + pr_cnt[p] - c
+        denom = gt_cnt[gk] + pr_cnt[pk] - c
         nz = c > 0
         sum_ass[nz] += (c[nz] * c[nz]) / np.maximum(denom[nz], 1e-9)
     fn = n_gt_dets - tp
