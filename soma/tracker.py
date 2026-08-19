@@ -22,6 +22,26 @@ from .matching import linear_assignment
 from .tokens import N_SLOTS, AnatomicalToken, apply_amodal
 
 
+@dataclass(frozen=True)
+class TrackResult:
+    """One tracked person emitted for the current frame (public API).
+
+    ``box`` is (x1, y1, x2, y2) in frame coordinates. ``ghost`` marks KF
+    coasting emissions (no detection this frame). ``embedding`` is a
+    reference to the track's EMA appearance vector (treat as read-only).
+    """
+
+    tid: int
+    box: tuple
+    score: float
+    ghost: bool
+    hits: int
+    age: int
+    gender: int
+    generation: int
+    embedding: "np.ndarray | None"
+
+
 @dataclass
 class TrackerConfig:
     det_thresh: float = 0.45        # stage-1 pool
@@ -216,10 +236,14 @@ def _iou_mat(a: np.ndarray, b: np.ndarray) -> np.ndarray:
 
 
 class SomaTracker:
-    def __init__(self, cfg: TrackerConfig | None = None):
+    def __init__(self, cfg: TrackerConfig | None = None, record_rows: bool = True):
         self.cfg = cfg or TrackerConfig()
         self.tracks: list[Track] = []
         self.next_id = 1
+        # record_rows=False disables the unbounded MOT-row history (live use)
+        self.record_rows = record_rows
+        self.frame_count = 0
+        self._frame_events: list[tuple[Track, np.ndarray, float, bool]] = []
         self.rows: list[tuple[int, int, float, float, float, float, float]] = []
         self._memory: list[dict] = []                        # post-death identity memory
         self._geom_samples: list[tuple[float, float]] = []   # (y_bottom, h) reservoir
@@ -406,6 +430,8 @@ class SomaTracker:
     # ---- main step ----------------------------------------------------------
     def step(self, frame_id: int, tokens: list[AnatomicalToken]) -> None:
         cfg = self.cfg
+        self._frame_events = []
+        self.frame_count = max(self.frame_count, frame_id)
         if cfg.token_floor > 0:
             tokens = [t for t in tokens
                       if t.anchor == "orphan" or t.body_score >= cfg.token_floor]
@@ -678,16 +704,22 @@ class SomaTracker:
                         and 1 <= tr.time_since_update <= lim
                         and tr.last_crowding <= cfg.ghost_crowd_max):
                     self._append(frame_id, tr.tid, tr.kf.box(),
-                                 tr.score * cfg.ghost_score_mult)
+                                 tr.score * cfg.ghost_score_mult,
+                                 tr=tr, ghost=True)
 
     def _emit(self, frame_id: int, tr: Track, box: np.ndarray) -> None:
         if tr.hits < self.cfg.min_hits:
             return
-        self._append(frame_id, tr.tid, box, tr.score)
+        self._append(frame_id, tr.tid, box, tr.score, tr=tr, ghost=False)
 
-    def _append(self, frame_id: int, tid: int, box: np.ndarray, score: float) -> None:
-        self.rows.append((frame_id, tid, float(box[0]), float(box[1]),
-                          float(box[2] - box[0]), float(box[3] - box[1]), score))
+    def _append(self, frame_id: int, tid: int, box: np.ndarray, score: float,
+                tr: "Track | None" = None, ghost: bool = False) -> None:
+        if self.record_rows:
+            self.rows.append((frame_id, tid, float(box[0]), float(box[1]),
+                              float(box[2] - box[0]), float(box[3] - box[1]), score))
+        if tr is not None:
+            self._frame_events.append((tr, np.asarray(box, dtype=np.float32),
+                                       float(score), ghost))
 
     def _mem_entry(self, tr: Track) -> dict:
         """Identity memory captured at death — anchored on the LAST OBSERVED
@@ -716,6 +748,40 @@ class SomaTracker:
                 "gender_votes": tr.gender_votes.copy(), "gen_votes": tr.gen_votes.copy(),
                 "head_dir": None if tr.head_dir is None else tr.head_dir.copy(),
                 "head_dir_conf": tr.head_dir_conf}
+
+    def update(self, tokens: list[AnatomicalToken],
+               frame_id: int | None = None) -> list[TrackResult]:
+        """Advance one frame and return this frame's emissions.
+
+        The frame index auto-increments when ``frame_id`` is omitted. Unlike
+        ``step()``/``results()`` (the batch/replay API), the returned list
+        covers ONLY the current frame, including ghost (KF coasting)
+        emissions flagged with ``ghost=True``.
+        """
+        fid = self.frame_count + 1 if frame_id is None else frame_id
+        if tokens and not isinstance(tokens[0], AnatomicalToken):
+            from .api import token_from_detection  # runtime import: no cycle
+            tokens = [t if isinstance(t, AnatomicalToken)
+                      else token_from_detection(t) for t in tokens]
+        self.step(fid, tokens)
+        return [TrackResult(tid=tr.tid,
+                            box=(float(b[0]), float(b[1]), float(b[2]), float(b[3])),
+                            score=score, ghost=ghost, hits=tr.hits, age=tr.age,
+                            gender=tr.gender(), generation=tr.generation(),
+                            embedding=tr.embedding)
+                for tr, b, score, ghost in self._frame_events]
+
+    def reset(self) -> None:
+        """Drop all tracker state (tracks, memory, ids, geometry prior)."""
+        self.tracks = []
+        self.next_id = 1
+        self.frame_count = 0
+        self._frame_events = []
+        self.rows = []
+        self._memory = []
+        self._geom_samples = []
+        self._geom_fit = None
+        self._geom_next_fit = 100
 
     def results(self) -> list[tuple]:
         return sorted(self.rows, key=lambda r: (r[0], r[1]))

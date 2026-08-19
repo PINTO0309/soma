@@ -81,7 +81,9 @@ All rows share the same low-floor (0.10) wb28 detections; within a section every
 ## Setup
 
 ```bash
-uv sync # pinned deps (numpy/opencv/ort-gpu/scipy)
+uv sync --extra full # pinned deps (numpy + opencv/ort-gpu/scipy extras)
+# the core package needs numpy only; extras: perception (opencv + ort-gpu),
+# eval (scipy fast path), full = perception + eval, tensorrt, dev
 # models/ : copy the three ONNX files (gitignored) —
 #   yolov9_e_wholebody28_refine_Nx3HxW.onnx   (detector, dynamic res)
 #   personvit_vits16_ain_unified_aug_n.onnx   (SOMA-R ReID, 384-d, raw)
@@ -184,6 +186,54 @@ For comparison under the same criteria: the official pre-trained OSNet-AIN weigh
   | jpeg-q40 | 0.4819 | 0.7087 | -0.0182 | -0.0223 |
   | jpeg-q20 | 0.4379 | 0.6571 | -0.0621 | -0.0738 |
 
+## Python API
+
+SOMA is importable as a package — distribution name `soma-tracker`, import name `soma`. The tracking core depends on numpy only; the full frames-in/tracks-out pipeline needs the `perception` extra (opencv + onnxruntime-gpu).
+
+```bash
+pip install "soma-tracker[perception] @ git+https://github.com/PINTO0309/soma" # or: uv add "soma-tracker[perception] @ git+..."
+```
+
+**Level A — frames in, tracks out** (the same model + preset + whitening wiring as `soma-eval video`):
+
+```python
+import cv2
+from soma import SomaVideoTracker, models
+
+models.download("yolov9_e_wholebody28_refine_Nx3HxW.onnx")   # -> models/ (skips existing)
+models.download("personvit_vits16_ain_unified_aug_n.onnx")
+
+vt = SomaVideoTracker.from_variant("pv")  # det / pv / os; backend: tensorrt (default) / cuda / cpu
+cap = cv2.VideoCapture("input.mp4")
+while True:
+    ok, frame = cap.read()
+    if not ok:
+        break
+    for t in vt.update(frame):
+        print(t.tid, t.box, t.score, t.ghost)
+    heads = vt.head_boxes()               # head boxes of this frame (privacy masking helper)
+```
+
+**Level B — bring your own detector/ReID** (numpy-only; no opencv/onnxruntime import):
+
+```python
+from soma import Detection, SomaTracker, tracker_config
+
+trk = SomaTracker(tracker_config("somar-pv", fps=25), record_rows=False)
+for frame_dets in stream:                 # your detector (+ optional ReID embeddings)
+    tracks = trk.update(
+      [
+        Detection(
+          box=(x1, y1, x2, y2),
+          score=s,
+          embedding=e
+        ) for (x1, y1, x2, y2), s, e in frame_dets
+      ]
+    )
+```
+
+Presets: `soma` (geometry only), `somar-pv` (PersonViT thresholds), `somar-os` (OSNet-AIN thresholds; pair with whitened embeddings). `tracker_config(preset, fps, **overrides)` resolves the frame-rate-derived horizons and accepts any `TrackerConfig` field as an override. Without part points the part-OKS / head-orientation channels stay silent and association runs on IoU, embedding, attributes and the memory/revival stack. `models.list_assets()` enumerates every export published in the [models release](https://github.com/PINTO0309/soma/releases/tag/models). The package ships `py.typed`.
+
 ## Fine-tuning ReID Models Using Synthetic Datasets
 
 See: https://github.com/PINTO0309/PersonViT
@@ -218,7 +268,7 @@ Every camera has a seed-locked mounting height, downward pitch, focal length, an
 | diagonal-medium | ~7–12° | diagonal mid-range |
 | telephoto-exit | ~1.5–4.5° | doorway telephoto (near-horizontal) |
 
-The geometry is recorded in `state/cameras.jsonl`, in the generation　prompts, and in every manifest row (e.g. mounting height 5.44 m / pitch −24.17° / focal 20 mm). Body yaw is also generated in labeled steps (front / front_right / right, ...).
+The geometry is recorded in `state/cameras.jsonl`, in the generation prompts, and in every manifest row (e.g. mounting height 5.44 m / pitch −24.17° / focal 20 mm). Body yaw is also generated in labeled steps (front / front_right / right, ...).
 
 ### Generation-pipeline characteristics
 
@@ -263,6 +313,9 @@ runtime (Electron + LiteRT) — neither imports the other.
 
 ```
 soma/                 python package (benchmark & evaluation stack)
+  api.py          public integration API (Detection adapter, SomaVideoTracker)
+  presets.py      shipped tracker presets + ReID variants, tracker_config()
+  models.py       model download helper (GitHub models release, stdlib-only)
   detector.py     wb28 ONNX inference (stretch/letterbox, TRT/CUDA/CPU)
   assembly.py     detections -> per-person part groups (bone joining)
   tokens.py       part groups -> anatomical tokens (+ amodal synthesis)
